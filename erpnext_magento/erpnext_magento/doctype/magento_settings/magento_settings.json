@@ -23,10 +23,8 @@
   "price_lists",
   "company_dependent_settings",
   "company",
-  "cash_bank_account",
   "column_break_20",
-  "cost_center",
-  "warehouse",
+  "cash_bank_account",
   "section_break_22",
   "html_16",
   "taxes",
@@ -66,7 +64,7 @@
    "fieldtype": "Section Break"
   },
   {
-   "description": "eg: frappe.mymagento.com",
+   "description": "eg: https://www.my-shop.com",
    "fieldname": "magento_url",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -80,12 +78,14 @@
   {
    "fieldname": "api_key",
    "fieldtype": "Data",
-   "label": "API Key"
+   "label": "API Key",
+   "reqd": 1
   },
   {
    "fieldname": "password",
    "fieldtype": "Password",
-   "label": "Password"
+   "label": "Password",
+   "reqd": 1
   },
   {
    "fieldname": "webhook_address",
@@ -130,23 +130,6 @@
    "fieldtype": "Link",
    "label": "Cash/Bank Account",
    "options": "Account"
-  },
-  {
-   "fieldname": "column_break_20",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "cost_center",
-   "fieldtype": "Link",
-   "label": "Cost Center",
-   "options": "Cost Center"
-  },
-  {
-   "description": "Sync Item Quantity, from seleted Warehouse with Magento",
-   "fieldname": "warehouse",
-   "fieldtype": "Link",
-   "label": "Warehouse",
-   "options": "Warehouse"
   },
   {
    "fieldname": "section_break_22",
@@ -209,15 +192,20 @@
    "fieldname": "price_lists",
    "fieldtype": "Table",
    "label": "Magento Price List",
-   "options": "Magento Price List"
+   "options": "Magento Price List",
+   "reqd": 1
   },
   {
    "fieldname": "section_break_16",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_20",
+   "fieldtype": "Column Break"
   }
  ],
  "issingle": 1,
- "modified": "2020-02-19 12:45:45.989280",
+ "modified": "2020-02-19 13:12:19.465375",
  "modified_by": "Administrator",
  "module": "ERPNext Magento",
  "name": "Magento Settings",
