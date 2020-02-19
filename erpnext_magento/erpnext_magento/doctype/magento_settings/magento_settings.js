@@ -36,16 +36,9 @@ frappe.ui.form.on("Magento Settings", "refresh", function(frm){
 
 		frm.add_custom_button(__('Sync Magento'), function() {
 			frappe.call({
-				method:"erpnext_magento.api.sync_magento",
+				method:"erpnext_magento.erpnext_magento.api.sync_magento",
 			})
 		}).addClass("btn-primary");
-	}
-
-	if(!frm.doc.access_token && !frm.doc.api_key) {
-		frm.add_custom_button(__("Connect to Magento"),
-			function(){
-				window.open("https://apps.magento.com/erpnext");
-			}).addClass("btn-primary")
 	}
 
 	frm.add_custom_button(__("Magento Log"), function(){
