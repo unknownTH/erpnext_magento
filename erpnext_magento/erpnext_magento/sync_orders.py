@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 import frappe
 from frappe import _
-from .exceptions import ShopifyError
+from .exceptions import MagentoError
 from .utils import make_magento_log
 from .sync_products import make_item
 from .sync_customers import create_customer
@@ -14,7 +14,7 @@ def sync_orders():
 
 def sync_magento_orders():
 	frappe.local.form_dict.count_dict["orders"] = 0
-	magento_settings = frappe.get_doc("Shopify Settings", "Shopify Settings")
+	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
 	
 	for magento_order in get_magento_orders():
 		if valid_customer_and_product(magento_order):
@@ -22,7 +22,7 @@ def sync_magento_orders():
 				create_order(magento_order, magento_settings)
 				frappe.local.form_dict.count_dict["orders"] += 1
 
-			except ShopifyError, e:
+			except MagentoError as e:
 				make_magento_log(status="Error", method="sync_magento_orders", message=frappe.get_traceback(),
 					request_data=magento_order, exception=True)
 			except Exception as e:
@@ -40,7 +40,7 @@ def valid_customer_and_product(magento_order):
 	else:
 		raise _("Customer is mandatory to create order")
 
-	warehouse = frappe.get_doc("Shopify Settings", "Shopify Settings").warehouse
+	warehouse = frappe.get_doc("Magento Settings", "Magento Settings").warehouse
 	for item in magento_order.get("line_items"):
 		if not frappe.db.get_value("Item", {"magento_product_id": item.get("product_id")}, "name"):
 			item = get_request("/admin/products/{}.json".format(item.get("product_id")))["product"]
@@ -66,7 +66,7 @@ def create_sales_order(magento_order, magento_settings, company=None):
 	if not so:
 		so = frappe.get_doc({
 			"doctype": "Sales Order",
-			"naming_series": magento_settings.sales_order_series or "SO-Shopify-",
+			"naming_series": magento_settings.sales_order_series or "SO-Magento-",
 			"magento_order_id": magento_order.get("id"),
 			"customer": frappe.db.get_value("Customer", {"magento_customer_id": magento_order.get("customer").get("id")}, "name"),
 			"delivery_date": nowdate(),
@@ -99,7 +99,7 @@ def create_sales_invoice(magento_order, magento_settings, so):
 		and so.docstatus==1 and not so.per_billed:
 		si = make_sales_invoice(so.name)
 		si.magento_order_id = magento_order.get("id")
-		si.naming_series = magento_settings.sales_invoice_series or "SI-Shopify-"
+		si.naming_series = magento_settings.sales_invoice_series or "SI-Magento-"
 		si.flags.ignore_mandatory = True
 		set_cost_center(si.items, magento_settings.cost_center)
 		si.save()
@@ -125,7 +125,7 @@ def create_delivery_note(magento_order, magento_settings, so):
 			dn = make_delivery_note(so.name)
 			dn.magento_order_id = fulfillment.get("order_id")
 			dn.magento_fulfillment_id = fulfillment.get("id")
-			dn.naming_series = magento_settings.delivery_note_series or "DN-Shopify-"
+			dn.naming_series = magento_settings.delivery_note_series or "DN-Magento-"
 			dn.items = get_fulfillment_items(dn.items, fulfillment.get("line_items"), magento_settings)
 			dn.flags.ignore_mandatory = True
 			dn.save()
@@ -195,10 +195,10 @@ def update_taxes_with_shipping_lines(taxes, shipping_lines, magento_settings):
 def get_tax_account_head(tax):
 	tax_title = tax.get("title").encode("utf-8")
 
-	tax_account =  frappe.db.get_value("Shopify Tax Account", \
-		{"parent": "Shopify Settings", "magento_tax": tax_title}, "tax_account")
+	tax_account =  frappe.db.get_value("Magento Tax Account", \
+		{"parent": "Magento Settings", "magento_tax": tax_title}, "tax_account")
 
 	if not tax_account:
-		frappe.throw("Tax Account not specified for Shopify Tax {0}".format(tax.get("title")))
+		frappe.throw("Tax Account not specified for Magento Tax {0}".format(tax.get("title")))
 
 	return tax_account

@@ -22,7 +22,7 @@ def sync_magento_items(warehouse, magento_item_list):
 		try:
 			make_item(warehouse, magento_item, magento_item_list)
 
-		except MagentoError, e:
+		except MagentoError as e:
 			make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
 				request_data=magento_item, exception=True)
 
@@ -346,7 +346,7 @@ def sync_erpnext_items(price_list, warehouse, magento_item_list):
 				sync_item_with_magento(item, price_list, warehouse)
 				frappe.local.form_dict.count_dict["products"] += 1
 
-			except MagentoError, e:
+			except MagentoError as e:
 				make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
 					request_data=item, exception=True)
 			except Exception as e:
@@ -431,7 +431,7 @@ def sync_item_with_magento(item, price_list, warehouse):
 		try:
 			put_request("/admin/products/{}.json".format(item.get("magento_product_id")), item_data)
 
-		except requests.exceptions.HTTPError, e:
+		except requests.exceptions.HTTPError as e:
 			if e.args[0] and e.args[0].startswith("404"):
 				if frappe.db.get_value("Magento Settings", "Magento Settings", "if_not_exists_create_item_to_magento"):
 					item_data["product"]["id"] = ''
@@ -595,7 +595,7 @@ def update_item_stock_qty():
 		filters={"sync_with_magento": 1, "disabled": ("!=", 1), 'magento_variant_id': ('!=', '')}):
 		try:
 			update_item_stock(item.item_code, magento_settings)
-		except MagentoError, e:
+		except MagentoError as e:
 			make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
 				request_data=item, exception=True)
 
@@ -626,7 +626,7 @@ def update_item_stock(item_code, magento_settings, bin=None):
 
 			try:
 				put_request(resource, item_data)
-			except requests.exceptions.HTTPError, e:
+			except requests.exceptions.HTTPError as e:
 				if e.args[0] and e.args[0].startswith("404"):
 					make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
 						request_data=item_data, exception=True)
