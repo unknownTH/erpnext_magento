@@ -7,8 +7,8 @@ import frappe
 from frappe import _
 import requests.exceptions
 from frappe.model.document import Document
-from erpnext_magento.magento_requests import get_request
-from erpnext_magento.exceptions import MagentoSetupError
+from erpnext_magento.erpnext_magento.magento_requests import get_request
+from erpnext_magento.erpnext_magento.exceptions import MagentoSetupError
 
 class MagentoSettings(Document):
 	def validate(self):
