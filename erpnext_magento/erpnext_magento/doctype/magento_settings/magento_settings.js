@@ -68,7 +68,7 @@ frappe.ui.form.on("Magento Settings", "refresh", function(frm){
 
 
 	frappe.call({
-		method: "erpnext_magento.api.get_log_status",
+		method: "erpnext_magento.erpnext_magento.api.get_log_status",
 		callback: function(r) {
 			if(r.message){
 				frm.dashboard.set_headline_alert(r.message.text, r.message.alert_class)
