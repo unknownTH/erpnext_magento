@@ -5,24 +5,17 @@ import json, math, time, pytz
 from .exceptions import MagentoError
 from frappe.utils import get_request_session, get_datetime, get_time_zone, encode
 
-def check_api_call_limit(response):
-	"""
-		This article will show you how to tell your program to take small pauses
-		to keep your app a few API calls shy of the API call limit and
-		to guard you against a 429 - Too Many Requests error.
-
-		ref : https://docs.magento.com/api/introduction/api-call-limit
-	"""
-	if response.headers.get("HTTP_X_magento_SHOP_API_CALL_LIMIT") == 39:
-		time.sleep(10)    # pause 10 seconds
-
 def get_magento_settings():
 	d = frappe.get_doc("Magento Settings")
 	
 	if d.magento_url:
-		if d.app_type == "Private" and d.password:
+		if d.password:
 			d.password = d.get_password()
+		else:
+			frappe.throw(_("Magento Passwort is not configured on Magento Settings"), MagentoError)
+
 		return d.as_dict()
+
 	else:
 		frappe.throw(_("Magento store URL is not configured on Magento Settings"), MagentoError)
 
@@ -33,7 +26,6 @@ def get_request(path, settings=None):
 	s = get_request_session()
 	url = get_magento_url(path, settings)
 	r = s.get(url, headers=get_header(settings))
-	check_api_call_limit(r)
 	r.raise_for_status()
 	return r.json()
 
@@ -42,7 +34,6 @@ def post_request(path, data):
 	s = get_request_session()
 	url = get_magento_url(path, settings)
 	r = s.post(url, data=json.dumps(data), headers=get_header(settings))
-	check_api_call_limit(r)
 	r.raise_for_status()
 	return r.json()
 
@@ -51,7 +42,6 @@ def put_request(path, data):
 	s = get_request_session()
 	url = get_magento_url(path, settings)
 	r = s.put(url, data=json.dumps(data), headers=get_header(settings))
-	check_api_call_limit(r)
 	r.raise_for_status()
 	return r.json()
 
