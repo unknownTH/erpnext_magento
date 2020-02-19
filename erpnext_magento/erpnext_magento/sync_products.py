@@ -26,7 +26,7 @@ def sync_magento_items(warehouse, magento_item_list):
 			make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
 				request_data=magento_item, exception=True)
 
-		except Exception, e:
+		except Exception as e:
 			if e.args[0] and e.args[0].startswith("402"):
 				raise e
 			else:
@@ -349,7 +349,7 @@ def sync_erpnext_items(price_list, warehouse, magento_item_list):
 			except MagentoError, e:
 				make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
 					request_data=item, exception=True)
-			except Exception, e:
+			except Exception as e:
 				make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
 					request_data=item, exception=True)
 
@@ -599,7 +599,7 @@ def update_item_stock_qty():
 			make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
 				request_data=item, exception=True)
 
-		except Exception, e:
+		except Exception as e:
 			if e.args[0] and e.args[0].startswith("402"):
 				raise e
 			else:

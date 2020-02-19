@@ -45,7 +45,7 @@ def create_customer(magento_customer, magento_customer_list):
 		magento_customer_list.append(magento_customer.get("id"))
 		frappe.db.commit()
 			
-	except Exception, e:
+	except Exception as e:
 		if e.args[0] and e.args[0].startswith("402"):
 			raise e
 		else:
@@ -75,7 +75,7 @@ def create_customer_address(customer, magento_customer):
 				}]
 			}).insert()
 			
-		except Exception, e:
+		except Exception as e:
 			make_magento_log(title=e.message, status="Error", method="create_customer_address", message=frappe.get_traceback(),
 				request_data=magento_customer, exception=True)
 		
@@ -111,7 +111,7 @@ def sync_erpnext_customers(magento_customer_list):
 			
 			frappe.local.form_dict.count_dict["customers"] += 1
 			frappe.db.commit()
-		except Exception, e:
+		except Exception as e:
 			make_magento_log(title=e.message, status="Error", method="sync_erpnext_customers", message=frappe.get_traceback(),
 				request_data=customer, exception=True)
 

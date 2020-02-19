@@ -25,7 +25,7 @@ def sync_magento_orders():
 			except ShopifyError, e:
 				make_magento_log(status="Error", method="sync_magento_orders", message=frappe.get_traceback(),
 					request_data=magento_order, exception=True)
-			except Exception, e:
+			except Exception as e:
 				if e.args and e.args[0] and e.args[0].decode("utf-8").startswith("402"):
 					raise e
 				else:
