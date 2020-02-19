@@ -6,7 +6,7 @@ from frappe import _
 from .exceptions import MagentoError
 from .sync_orders import sync_orders
 from .sync_customers import sync_customers
-from .sync_products import sync_products, update_item_stock_qty
+from .sync_products import sync_products
 from .utils import disable_magento_sync_on_exception, make_magento_log
 from frappe.utils.background_jobs import enqueue
 
@@ -27,10 +27,9 @@ def sync_magento_resources():
 			now_time = frappe.utils.now()
 			validate_magento_settings(magento_settings)
 			frappe.local.form_dict.count_dict = {}
-			sync_products(magento_settings.price_list, magento_settings.warehouse)
-			sync_customers()
-			sync_orders()
-			update_item_stock_qty()
+			#sync_products(magento_settings.price_list, magento_settings.warehouse)
+			#sync_customers()
+			#sync_orders()
 			frappe.db.set_value("Magento Settings", None, "last_sync_datetime", now_time)
 			
 			make_magento_log(title="Sync Completed", status="Success", method=frappe.local.form_dict.cmd, 
