@@ -37,17 +37,8 @@ def sync_magento_resources():
 				message= "Updated {customers} customer(s), {products} item(s), {orders} order(s)".format(**frappe.local.form_dict.count_dict))
 
 		except Exception as e:
-			if e.args[0] and hasattr(e.args[0], "startswith") and e.args[0].startswith("402"):
-				make_magento_log(title="Magento has suspended your account", status="Error",
-					method="sync_magento_resources", message=_("""Magento has suspended your account till
-					you complete the payment. We have disabled ERPNext Magento Sync. Please enable it once
-					your complete the payment at Magento."""), exception=True)
-
-				disable_magento_sync_on_exception()
-			
-			else:
-				make_magento_log(title="sync has terminated", status="Error", method="sync_magento_resources",
-					message=frappe.get_traceback(), exception=True)
+			make_magento_log(title="sync has terminated", status="Error", method="sync_magento_resources",
+				message=frappe.get_traceback(), exception=True)
 					
 	elif frappe.local.form_dict.cmd == "erpnext_magento.api.sync_magento":
 		make_magento_log(
