@@ -52,11 +52,11 @@ def create_order(magento_order, magento_settings, company=None):
 	so = create_sales_order(magento_order, magento_settings, company)
 	create_sales_invoice(magento_order, magento_settings, so)
 	if magento_order.get("financial_status") == "paid" and cint(magento_settings.sync_sales_invoice):
-   		si = frappe.db.get_value("Sales Invoice", {"magento_order_id": magento_order.get("id")}, "name")
+		si = frappe.db.get_value("Sales Invoice", {"magento_order_id": magento_order.get("id")}, "name")
 		si = frappe.get_doc("Sales Invoice", si)
-    		si.submit()
-    		make_payament_entry_against_sales_invoice(si, magento_settings)
-    		frappe.db.commit()
+		si.submit()
+		make_payament_entry_against_sales_invoice(si, magento_settings)
+		frappe.db.commit()
 
 	if magento_order.get("fulfillments") and cint(magento_settings.sync_delivery_note):
 		create_delivery_note(magento_order, magento_settings, so)
