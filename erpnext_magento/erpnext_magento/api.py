@@ -28,7 +28,7 @@ def sync_magento_resources():
 			validate_magento_settings(magento_settings)
 			frappe.local.form_dict.count_dict = {}
 			#sync_products(magento_settings.price_list, magento_settings.warehouse)
-			#sync_customers()
+			sync_customers()
 			#sync_orders()
 			frappe.db.set_value("Magento Settings", None, "last_sync_datetime", now_time)
 			
