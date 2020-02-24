@@ -11,9 +11,7 @@
   "section_break_2",
   "magento_url",
   "column_break_3",
-  "api_key",
-  "password",
-  "webhook_address",
+  "api_access_token",
   "access_token",
   "erp_settings",
   "column_break_8",
@@ -74,23 +72,6 @@
   {
    "fieldname": "column_break_3",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "api_key",
-   "fieldtype": "Data",
-   "label": "API Key",
-   "reqd": 1
-  },
-  {
-   "fieldname": "password",
-   "fieldtype": "Password",
-   "label": "Password",
-   "reqd": 1
-  },
-  {
-   "fieldname": "webhook_address",
-   "fieldtype": "Data",
-   "label": "Webhook Address"
   },
   {
    "fieldname": "access_token",
@@ -202,10 +183,16 @@
   {
    "fieldname": "column_break_20",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "api_access_token",
+   "fieldtype": "Data",
+   "label": "API Access Token",
+   "reqd": 1
   }
  ],
  "issingle": 1,
- "modified": "2020-02-19 13:12:19.465375",
+ "modified": "2020-02-23 21:06:25.348841",
  "modified_by": "Administrator",
  "module": "ERPNext Magento",
  "name": "Magento Settings",
