@@ -52,19 +52,19 @@ def delete_request(path):
 	r.raise_for_status()
 
 def get_magento_url(path, settings):
-	magento_url = settings['magento_url']
-	
-	if magento_url[-1] != "/":
-		magento_url += "/"
-	
-	return '{}rest/V1/{}'.format(settings['magento_url'], path)
+	if settings['app_type'] == "Private":
+		return 'https://{}:{}@{}/{}'.format(settings['api_key'], settings['password'], settings['magento_url'], path)
+	else:
+		return 'https://{}/{}'.format(settings['magento_url'], path)
 
 def get_header(settings):
-	header = {
-		'Authorization': 'Bearer ' + settings['access_token']
-		'Content-Type': 'application/json'
-	}
-	return header
+	header = {'Content-Type': 'application/json'}
+
+	if settings['app_type'] == "Private":
+		return header
+	else:
+		header["X-Magento-Access-Token"] = settings['access_token']
+		return header
 
 def get_filtering_condition():
 	magento_settings = get_magento_settings()
