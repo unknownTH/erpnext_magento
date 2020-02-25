@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and contributors
-# For license information, please see license.txt
 
 from __future__ import unicode_literals
 import frappe
@@ -17,19 +15,12 @@ class MagentoSettings(Document):
 			self.validate_access()
 
 	def validate_access_credentials(self):
-		if self.app_type == "Private":
-			if not (self.get_password(raise_exception=False) and self.api_key and self.magento_url):
-				frappe.msgprint(_("Missing value for Password, API Key or Magento URL"), raise_exception=MagentoSetupError)
-
-		else:
-			if not (self.access_token and self.magento_url):
-				frappe.msgprint(_("Access token or Magento URL missing"), raise_exception=MagentoSetupError)
+		if not (self.api_access_token and self.magento_url):
+			frappe.msgprint(_("Magento URL or API access token missing"), raise_exception=MagentoSetupError)
 
 	def validate_access(self):
 		try:
-			get_request('/admin/products.json', {"api_key": self.api_key,
-				"password": self.get_password(raise_exception=False), "magento_url": self.magento_url,
-				"access_token": self.access_token, "app_type": self.app_type})
+			get_request('products/', {"api_access_key": self.api_access_key, "magento_url": self.magento_url})
 
 		except requests.exceptions.HTTPError:
 			# disable magento!
@@ -37,7 +28,7 @@ class MagentoSettings(Document):
 			self.set("enable_magento", 0)
 			frappe.db.commit()
 
-			frappe.throw(_("""Invalid Magento app credentials or access token"""), MagentoSetupError)
+			frappe.throw(_("""Invalid Magento URL or API access token"""), MagentoSetupError)
 
 
 @frappe.whitelist()

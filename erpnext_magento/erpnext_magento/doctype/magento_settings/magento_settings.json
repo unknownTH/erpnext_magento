@@ -12,7 +12,6 @@
   "magento_url",
   "column_break_3",
   "api_access_token",
-  "access_token",
   "erp_settings",
   "column_break_8",
   "customer_group",
@@ -72,13 +71,6 @@
   {
    "fieldname": "column_break_3",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "access_token",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Access Token",
-   "read_only": 1
   },
   {
    "fieldname": "erp_settings",
@@ -173,8 +165,7 @@
    "fieldname": "price_lists",
    "fieldtype": "Table",
    "label": "Magento Price List",
-   "options": "Magento Price List",
-   "reqd": 1
+   "options": "Magento Price List"
   },
   {
    "fieldname": "section_break_16",
@@ -192,7 +183,7 @@
   }
  ],
  "issingle": 1,
- "modified": "2020-02-23 21:06:25.348841",
+ "modified": "2020-02-25 11:52:33.354403",
  "modified_by": "Administrator",
  "module": "ERPNext Magento",
  "name": "Magento Settings",

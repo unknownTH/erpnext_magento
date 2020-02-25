@@ -9,12 +9,11 @@ def get_magento_settings():
 	d = frappe.get_doc("Magento Settings")
 	
 	if d.magento_url:
-		if d.password:
-			d.password = d.get_password()
-		else:
-			frappe.throw(_("Magento Passwort is not configured on Magento Settings"), MagentoError)
+		if d.api_access_token:
+			return d.as_dict()
 
-		return d.as_dict()
+		else:
+			frappe.throw(_("Magento API access token is not configured on Magento Settings"), MagentoError)
 
 	else:
 		frappe.throw(_("Magento store URL is not configured on Magento Settings"), MagentoError)
@@ -61,7 +60,7 @@ def get_magento_url(path, settings):
 
 def get_header(settings):
 	header = {
-		'Authorization': 'Bearer ' + settings['access_token']
+		'Authorization': 'Bearer ' + settings['api_access_token'],
 		'Content-Type': 'application/json'
 	}
 	return header
