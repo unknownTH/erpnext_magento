@@ -45,9 +45,9 @@ frappe.ui.form.on("Magento Settings", "refresh", function(frm){
 		frappe.set_route("List", "Magento Log");
 	})
 	
-	frm.add_custom_button(__("Reset Last Sync Date"), function(){
+	frm.add_custom_button(__("Set Last Sync Date"), function(){
 		var dialog = new frappe.ui.Dialog({
-			title: __("Reset Last Sync Date"),
+			title: __("Set Last Sync Date"),
 			fields: [
 				{"fieldtype": "Datetime", "label": __("Date"), "fieldname": "last_sync_date", "reqd": 1 },
 				{"fieldtype": "Button", "label": __("Set last sync date"), "fieldname": "set_last_sync_date", "cssClass": "btn-primary"},
@@ -55,7 +55,7 @@ frappe.ui.form.on("Magento Settings", "refresh", function(frm){
 		});
 
 		dialog.fields_dict.set_last_sync_date.$input.click(function() {
-			args = dialog.get_values();
+			var args = dialog.get_values();
 			if(!args) return;
 
 			frm.set_value("last_sync_datetime", args['last_sync_date']);

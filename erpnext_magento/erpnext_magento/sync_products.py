@@ -2,11 +2,11 @@ from __future__ import unicode_literals
 import frappe
 from frappe import _
 import requests.exceptions
-from .exceptions import MagentoError
-from .utils import make_magento_log, disable_magento_sync_for_item
+from erpnext_magento.erpnext_magento.exceptions import MagentoError
+from erpnext_magento.erpnext_magento.utils import make_magento_log, disable_magento_sync_for_item
 from erpnext.stock.utils import get_bin
 from frappe.utils import cstr, flt, cint, get_files_path
-from .magento_requests import post_request, get_magento_items, put_request, get_magento_item_image
+from erpnext_magento.erpnext_magento.magento_requests import post_request, get_magento_items, put_request, get_magento_item_image
 import base64, requests, datetime, os
 
 magento_variants_attr_list = ["option1", "option2", "option3"]

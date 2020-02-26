@@ -2,8 +2,8 @@ from __future__ import unicode_literals
 import frappe
 from frappe import _
 import requests.exceptions
-from .magento_requests import get_magento_customers, post_request, put_request
-from .utils import make_magento_log
+from erpnext_magento.erpnext_magento.magento_requests import get_magento_customers, post_request, put_request
+from erpnext_magento.erpnext_magento.utils import make_magento_log
 
 def sync_customers():
 	magento_customer_list = []

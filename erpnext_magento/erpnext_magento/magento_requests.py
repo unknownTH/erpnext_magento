@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 import frappe
 from frappe import _
 import json, math, time, pytz
-from .exceptions import MagentoError
+from erpnext_magento.erpnext_magento.exceptions import MagentoError
 from frappe.utils import get_request_session, get_datetime, get_time_zone, encode
 
 def get_magento_settings():
@@ -23,7 +23,7 @@ def get_request(path, settings=None):
 		settings = get_magento_settings()
 
 	s = get_request_session()
-	url = get_magento_url(path, settings)
+	url = get_request_url(path, settings)
 	r = s.get(url, headers=get_header(settings))
 	r.raise_for_status()
 	return r.json()
@@ -31,7 +31,7 @@ def get_request(path, settings=None):
 def post_request(path, data):
 	settings = get_magento_settings()
 	s = get_request_session()
-	url = get_magento_url(path, settings)
+	url = get_request_url(path, settings)
 	r = s.post(url, data=json.dumps(data), headers=get_header(settings))
 	r.raise_for_status()
 	return r.json()
@@ -39,29 +39,30 @@ def post_request(path, data):
 def put_request(path, data):
 	settings = get_magento_settings()
 	s = get_request_session()
-	url = get_magento_url(path, settings)
+	url = get_request_url(path, settings)
 	r = s.put(url, data=json.dumps(data), headers=get_header(settings))
 	r.raise_for_status()
 	return r.json()
 
 def delete_request(path):
 	s = get_request_session()
-	url = get_magento_url(path)
+	url = get_request_url(path)
 	r = s.delete(url)
 	r.raise_for_status()
 
-def get_magento_url(path, settings):
+def get_request_url(path, settings):
 	magento_url = settings['magento_url']
 	
 	if magento_url[-1] != "/":
 		magento_url += "/"
 	
-	return '{}rest/V1/{}'.format(settings['magento_url'], path)
+	return '{}rest/V1{}'.format(magento_url, path)
 
 def get_header(settings):
 	header = {
 		'Authorization': 'Bearer ' + settings['api_access_token'],
-		'Content-Type': 'application/json'
+		'Content-Type': 'application/json',
+		'Accept': 'application/json'
 	}
 	return header
 
@@ -74,7 +75,10 @@ def get_filtering_condition():
 		timezone_abbr = timezone.localize(last_sync_datetime, is_dst=False)
 
 		utc_dt = timezone_abbr.astimezone (pytz.utc)
-		return 'updated_at_min="{0}"'.format(utc_dt.strftime("%Y-%m-%d %H:%M:%S"))
+		filter = '?searchCriteria[filter_groups][0][filters][0][field]=created_at\
+&searchCriteria[filter_groups][0][filters][0][value]={0}\
+&searchCriteria[filter_groups][0][filters][0][condition_type]=gt'.format(utc_dt.strftime("%Y-%m-%d %H:%M:%S"))
+		return filter
 	return ''
 
 def get_total_pages(resource, ignore_filter_conditions=False):
@@ -82,9 +86,11 @@ def get_total_pages(resource, ignore_filter_conditions=False):
 
 	if not ignore_filter_conditions:
 		filter_condition = get_filtering_condition()
-	
-	count = get_request('/admin/{0}&{1}'.format(resource, filter_condition))
-	return int(math.ceil(count.get('count', 0) / 250))
+	else:
+		filter_condition = "?searchCriteria"
+
+	count = get_request('/{0}{1}'.format(resource, filter_condition))
+	return int(math.ceil(count.get('total_count') / 250))
 
 def get_country():
 	return get_request('/admin/countries.json')['countries']
@@ -94,7 +100,9 @@ def get_magento_items(ignore_filter_conditions=False):
 
 	filter_condition = ''
 	if not ignore_filter_conditions:
-		filter_condition = get_filtering_condition().encode("utf-8")
+		filter_condition = get_filtering_condition()
+
+	# searchCriteria[pageSize]=250&searchCriteria[currentPage]=50
 
 	for page_idx in xrange(0, get_total_pages("products/count.json?", ignore_filter_conditions) or 1):
 		magento_products.extend(get_request('/admin/products.json?limit=250&page={0}&{1}'.format(page_idx+1,

@@ -1,12 +1,12 @@
 from __future__ import unicode_literals
 import frappe
 from frappe import _
-from .exceptions import MagentoError
-from .utils import make_magento_log
-from .sync_products import make_item
-from .sync_customers import create_customer
+from erpnext_magento.erpnext_magento.exceptions import MagentoError
+from erpnext_magento.erpnext_magento.utils import make_magento_log
+from erpnext_magento.erpnext_magento.sync_products import make_item
+from erpnext_magento.erpnext_magento.sync_customers import create_customer
 from frappe.utils import flt, nowdate, cint
-from .magento_requests import get_request, get_magento_orders
+from erpnext_magento.erpnext_magento.magento_requests import get_request, get_magento_orders
 from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note, make_sales_invoice
 
 def sync_orders():

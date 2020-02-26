@@ -3,7 +3,7 @@
 from __future__ import unicode_literals
 import frappe
 import json
-from .exceptions import MagentoSetupError
+from erpnext_magento.erpnext_magento.exceptions import MagentoSetupError
 
 def disable_magento_sync_for_item(item, rollback=False):
 	"""Disable Item if not exist on magento"""

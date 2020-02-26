@@ -20,7 +20,7 @@ class MagentoSettings(Document):
 
 	def validate_access(self):
 		try:
-			get_request('products/', {"api_access_key": self.api_access_key, "magento_url": self.magento_url})
+			get_request('/products?searchCriteria[pageSize]=1', {"api_access_token": self.api_access_token, "magento_url": self.magento_url})
 
 		except requests.exceptions.HTTPError:
 			# disable magento!
