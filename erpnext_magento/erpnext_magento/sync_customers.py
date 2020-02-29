@@ -21,8 +21,8 @@ def create_customer(magento_customer, magento_customer_list):
 	import frappe.utils.nestedset
 	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
 	
-	cust_name = (magento_customer.get("first_name") + " " + (magento_customer.get("last_name") \
-		and  magento_customer.get("last_name") or "")) if magento_customer.get("first_name")\
+	cust_name = (magento_customer.get("firstname") + " " + (magento_customer.get("lastname") \
+		and  magento_customer.get("lastname") or "")) if magento_customer.get("firstname")\
 		else magento_customer.get("email")
 		
 	try:
@@ -61,13 +61,13 @@ def create_customer_address(customer, magento_customer):
 				"magento_address_id": address.get("id"),
 				"address_title": address_title,
 				"address_type": address_type,
-				"address_line1": address.get("address1") or "Address 1",
-				"address_line2": address.get("address2"),
-				"city": address.get("city") or "City",
-				"state": address.get("province"),
-				"pincode": address.get("zip"),
-				"country": address.get("country"),
-				"phone": address.get("phone"),
+				"address_line1": address["street"][0],
+				"address_line2": "{0}, {1}".format(address["street"][1], address["street"][2]),
+				"city": address.get("city"),
+				"state": address["region"]["region"],
+				"pincode": address.get("postcode"),
+				"country": get_country_by_id(address.get("country_id")),
+				"phone": address.get("telephone") or "",
 				"email_id": magento_customer.get("email"),
 				"links": [{
 					"link_doctype": "Customer",
@@ -117,7 +117,7 @@ def sync_erpnext_customers(magento_customer_list):
 
 def create_customer_to_magento(customer):
 	magento_customer = {
-		"first_name": customer['customer_name'],
+		"firstname": customer['customer_name'],
 	}
 	
 	magento_customer = post_request("/admin/customers.json", { "customer": magento_customer})
@@ -144,8 +144,8 @@ def sync_customer_address(customer, address):
 	
 def update_customer_to_magento(customer, last_sync_datetime):
 	magento_customer = {
-		"first_name": customer['customer_name'],
-		"last_name": ""
+		"firstname": customer['customer_name'],
+		"lastname": ""
 	}
 	
 	try:

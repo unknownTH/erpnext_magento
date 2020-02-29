@@ -56,7 +56,7 @@ def get_request_url(path, settings):
 	if magento_url[-1] != "/":
 		magento_url += "/"
 	
-	return '{}rest/V1{}'.format(magento_url, path)
+	return '{}rest/V1/{}'.format(magento_url, path)
 
 def get_header(settings):
 	header = {
@@ -75,7 +75,7 @@ def get_filtering_condition():
 		timezone_abbr = timezone.localize(last_sync_datetime, is_dst=False)
 
 		utc_dt = timezone_abbr.astimezone (pytz.utc)
-		filter = '?searchCriteria[filter_groups][0][filters][0][field]=created_at\
+		filter = 'searchCriteria[filter_groups][0][filters][0][field]=updated_at\
 &searchCriteria[filter_groups][0][filters][0][value]={0}\
 &searchCriteria[filter_groups][0][filters][0][condition_type]=gt'.format(utc_dt.strftime("%Y-%m-%d %H:%M:%S"))
 		return filter
@@ -87,13 +87,22 @@ def get_total_pages(resource, ignore_filter_conditions=False):
 	if not ignore_filter_conditions:
 		filter_condition = get_filtering_condition()
 	else:
-		filter_condition = "?searchCriteria"
+		filter_condition = "searchCriteria"
 
-	count = get_request('/{0}{1}'.format(resource, filter_condition))
+	count = get_request('{0}?searchCriteria[pageSize]=1&{1}'.format(resource, filter_condition))
 	return int(math.ceil(count.get('total_count') / 250))
 
-def get_country():
-	return get_request('/admin/countries.json')['countries']
+# def get_country():
+#	return get_request('/admin/countries.json')['countries']
+
+def get_websites():
+	return get_request('store/websites?searchCriteria')
+
+def get_country_by_id(country_id):
+	countries = get_request('directory/countries?searchCriteria')
+	for country in countries:
+		if country.get("id") == country_id:
+			return country.get("full_name_locale")
 
 def get_magento_items(ignore_filter_conditions=False):
 	magento_products = []
@@ -102,16 +111,14 @@ def get_magento_items(ignore_filter_conditions=False):
 	if not ignore_filter_conditions:
 		filter_condition = get_filtering_condition()
 
-	# searchCriteria[pageSize]=250&searchCriteria[currentPage]=50
-
-	for page_idx in xrange(0, get_total_pages("products/count.json?", ignore_filter_conditions) or 1):
-		magento_products.extend(get_request('/admin/products.json?limit=250&page={0}&{1}'.format(page_idx+1,
-			filter_condition))['products'])
+	for page_idx in range(0, get_total_pages("products", ignore_filter_conditions) or 1):
+		magento_products.extend(get_request('products?searchCriteria[pageSize]=250&searchCriteria[currentPage]={0}&{1}'.format(page_idx+1,
+			filter_condition))['items'])
 
 	return magento_products
 
 def get_magento_item_image(magento_product_id):
-	return get_request("/admin/products/{0}/images.json".format(magento_product_id))["images"]
+ 	return get_request("/admin/products/{0}/images.json".format(magento_product_id))["images"]
 
 def get_magento_orders(ignore_filter_conditions=False):
 	magento_orders = []
@@ -119,11 +126,11 @@ def get_magento_orders(ignore_filter_conditions=False):
 	filter_condition = ''
 
 	if not ignore_filter_conditions:
-		filter_condition = get_filtering_condition()
+		filter_condition = get_filtering_condition()	
 
-	for page_idx in xrange(0, get_total_pages("orders/count.json?status=any", ignore_filter_conditions) or 1):
-		magento_orders.extend(get_request('/admin/orders.json?status=any&limit=250&page={0}&{1}'.format(page_idx+1,
-			filter_condition))['orders'])
+	for page_idx in range(0, get_total_pages("orders", ignore_filter_conditions) or 1):
+		magento_orders.extend(get_request('orders?searchCriteria[pageSize]=250&searchCriteria[currentPage]={0}&{1}'.format(page_idx+1,
+			filter_condition))['items'])
 	return magento_orders
 
 def get_magento_customers(ignore_filter_conditions=False):
@@ -134,7 +141,7 @@ def get_magento_customers(ignore_filter_conditions=False):
 	if not ignore_filter_conditions:
 		filter_condition = get_filtering_condition()
 
-	for page_idx in xrange(0, get_total_pages("customers/count.json?", ignore_filter_conditions) or 1):
-		magento_customers.extend(get_request('/admin/customers.json?limit=250&page={0}&{1}'.format(page_idx+1,
-			filter_condition))['customers'])
+	for page_idx in range(0, get_total_pages("customers/search", ignore_filter_conditions) or 1):
+		magento_customers.extend(get_request('customers/search?searchCriteria[pageSize]=250&searchCriteria[currentPage]={0}&{1}'.format(page_idx+1,
+			filter_condition))['items'])
 	return magento_customers

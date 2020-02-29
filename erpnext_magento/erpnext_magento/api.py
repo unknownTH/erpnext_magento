@@ -3,17 +3,17 @@
 from __future__ import unicode_literals
 import frappe
 from frappe import _
-from .exceptions import MagentoError
-from .sync_orders import sync_orders
-from .sync_customers import sync_customers
-from .sync_products import sync_products
-from .utils import disable_magento_sync_on_exception, make_magento_log
+from erpnext_magento.erpnext_magento.exceptions import MagentoError
+from erpnext_magento.erpnext_magento.sync_orders import sync_orders
+from erpnext_magento.erpnext_magento.sync_customers import sync_customers
+from erpnext_magento.erpnext_magento.sync_products import sync_products
+from erpnext_magento.erpnext_magento.utils import disable_magento_sync_on_exception, make_magento_log
 from frappe.utils.background_jobs import enqueue
 
 @frappe.whitelist()
 def sync_magento():
 	"Enqueue longjob for syncing magento"
-	enqueue("erpnext_magento.api.sync_magento_resources", queue='long')
+	enqueue("erpnext_magento.erpnext_magento.api.sync_magento_resources", queue='long')
 	frappe.msgprint(_("Queued for syncing. It may take a few minutes to an hour if this is your first sync."))
 
 @frappe.whitelist()
@@ -28,7 +28,7 @@ def sync_magento_resources():
 			validate_magento_settings(magento_settings)
 			frappe.local.form_dict.count_dict = {}
 			#sync_products(magento_settings.price_list, magento_settings.warehouse)
-			sync_customers()
+			#sync_customers()
 			#sync_orders()
 			frappe.db.set_value("Magento Settings", None, "last_sync_datetime", now_time)
 			

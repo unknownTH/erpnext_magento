@@ -20,10 +20,10 @@ class MagentoSettings(Document):
 
 	def validate_access(self):
 		try:
-			get_request('/products?searchCriteria[pageSize]=1', {"api_access_token": self.api_access_token, "magento_url": self.magento_url})
+			get_request('products?searchCriteria[pageSize]=1', {"api_access_token": self.api_access_token, "magento_url": self.magento_url})
 
 		except requests.exceptions.HTTPError:
-			# disable magento!
+			# disable magento sync!
 			frappe.db.rollback()
 			self.set("enable_magento", 0)
 			frappe.db.commit()
