@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 import frappe
 from frappe import _
 import requests.exceptions
-from erpnext_magento.erpnext_magento.magento_requests import get_magento_customers, post_request, put_request, get_country_by_id
+from erpnext_magento.erpnext_magento.magento_requests import get_magento_customers, post_request, put_request, get_magento_country_name_by_id
 from erpnext_magento.erpnext_magento.utils import make_magento_log
 
 def sync_customers():
@@ -82,7 +82,7 @@ def create_customer_address(customer, magento_customer):
 				"city": address.get("city"),
 				"state": address["region"]["region"],
 				"pincode": address.get("postcode"),
-				"country": get_country_by_id(address.get("country_id")),
+				"country": get_magento_country_name_by_id(address.get("country_id")),
 				"phone": address.get("telephone") or "",
 				"email_id": magento_customer.get("email"),
 				"links": [{
@@ -118,54 +118,24 @@ def sync_erpnext_customers(magento_customer_list):
 		
 	for customer in frappe.db.sql(customer_query, as_dict=1):
 		try:
-			if not customer.magento_customer_id:
-				create_customer_to_magento(customer)
+			if customer.magento_customer_id not in magento_customer_list:
+				update_customer_to_magento(customer, magento_settings.last_sync_datetime)	
+				frappe.local.form_dict.count_dict["customers"] += 1
+				frappe.db.commit()	
 			
-			else:
-				if customer.magento_customer_id not in magento_customer_list:
-					update_customer_to_magento(customer, magento_settings.last_sync_datetime)
-			
-			frappe.local.form_dict.count_dict["customers"] += 1
-			frappe.db.commit()
 		except Exception as e:
 			make_magento_log(title=e.message, status="Error", method="sync_erpnext_customers", message=frappe.get_traceback(),
 				request_data=customer, exception=True)
-
-def create_customer_to_magento(customer):
-	magento_customer = {
-		"firstname": customer['customer_name'],
-	}
-	
-	magento_customer = post_request("customers", { "customer": magento_customer})
-	
-	customer = frappe.get_doc("Customer", customer['name'])
-	customer.magento_customer_id = magento_customer['customer'].get("id")
-	
-	customer.flags.ignore_mandatory = True
-	customer.save()
-	
-	addresses = get_customer_addresses(customer.as_dict())
-	for address in addresses:
-		sync_customer_address(customer, address)
-
-def sync_customer_address(customer, address):
-	address_name = address.pop("name")
-
-	magento_address = post_request("/admin/customers/{0}/addresses.json".format(customer.magento_customer_id),
-	{"address": address})
-		
-	address = frappe.get_doc("Address", address_name)
-	address.magento_address_id = magento_address['customer_address'].get("id")
-	address.save()
 	
 def update_customer_to_magento(customer, last_sync_datetime):
 	magento_customer = {
 		"firstname": customer['customer_name'],
-		"lastname": ""
 	}
 	
+	append_address_details(magento_customer)
+
 	try:
-		put_request("/admin/customers/{0}.json".format(customer.magento_customer_id),\
+		put_request("customer/{0}".format(customer.magento_customer_id),\
 			{ "customer": magento_customer})
 		update_address_details(customer, last_sync_datetime)
 		
@@ -179,33 +149,34 @@ def update_customer_to_magento(customer, last_sync_datetime):
 		else:
 			raise
 			
-def update_address_details(customer, last_sync_datetime):
-	customer_addresses = get_customer_addresses(customer, last_sync_datetime)
-	for address in customer_addresses:
-		if address.magento_address_id:
-			url = "/admin/customers/{0}/addresses/{1}.json".format(customer.magento_customer_id,\
-			address.magento_address_id)
+def append_address_details(customer, magento_customer):
+	customer_addresses = get_customer_addresses(customer)
+	
+	if customer_addresses:
+		magento_customer['addresses'] = []
+		for address in customer_addresses:
+			magento_customer['addresses'].append({
+				"doctype": "Address",
+				"magento_address_id": address.get("id"),
+				"address_title": address_title,
+				"address_type": address_type,
+				"address_line1": adress_line1,
+				"address_line2": adress_line2,
+				"address_line3": adress_line3,
+				"city": address.get("city"),
+				"state": address["region"]["region"],
+				"pincode": address.get("postcode"),
+				"country": get_magento_country_name_by_id(address.get("country_id")),
+				"phone": address.get("telephone") or "",
+				"email_id": magento_customer.get("email"),
+			})
 			
-			address["id"] = address["magento_address_id"]
-			
-			del address["magento_address_id"]
-			
-			put_request(url, { "address": address})
-			
-		else:
-			sync_customer_address(customer, address)
-			
-def get_customer_addresses(customer, last_sync_datetime=None):
+def get_customer_addresses(customer):
 	conditions = ["dl.parent = addr.name", "dl.link_doctype = 'Customer'",
 		"dl.link_name = '{0}'".format(customer['name'])]
-	
-	if last_sync_datetime:
-		last_sync_condition = "addr.modified >= '{0}'".format(last_sync_datetime)
-		conditions.append(last_sync_condition)
-	
-	address_query = """select addr.name, addr.address_line1 as address1, addr.address_line2 as address2,
-		addr.city as city, addr.state as province, addr.country as country, addr.pincode as zip,
-		addr.magento_address_id from tabAddress addr, `tabDynamic Link` dl
+		
+	address_query = """select addr.* from tabAddress addr, `tabDynamic Link` dl
 		where {0}""".format(' and '.join(conditions))
 			
 	return frappe.db.sql(address_query, as_dict=1)
+

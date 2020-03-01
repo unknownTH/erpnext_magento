@@ -98,11 +98,30 @@ def get_total_pages(resource, ignore_filter_conditions=False):
 def get_websites():
 	return get_request('store/websites?searchCriteria')
 
-def get_country_by_id(country_id):
-	countries = get_request('directory/countries?searchCriteria')
+def get_magento_country_name_by_id(country_id):
+	countries = get_request('directory/countries')
 	for country in countries:
 		if country.get("id") == country_id:
 			return country.get("full_name_locale")
+	
+	make_magento_log(title="Country not Found", status="Error", method="get_magento_country_name_by_id", message="No country with name {0}".format(country_name),
+		request_data=country, exception=True)
+
+def get_magento_region_id_by_name(country_name, region_name):
+	countries = get_request('directory/countries')
+	for country in countries:
+		if country.get("full_name_locale") == country_name:
+			for region in country.get("available_regions"):
+				if region.get("name") == region_name:
+					return region.get("id")
+			
+			make_magento_log(title="Region not Found", status="Error", method="get_magento_region_id_by_name", message="No Magento region with name {0}".format(region_name),
+				request_data=country, exception=True)
+			return
+	
+	make_magento_log(title="Country not Found", status="Error", method="get_magento_region_id_by_name", message="No Magento country with name {0}".format(country_name),
+		request_data=country, exception=True)
+	
 
 def get_magento_items(ignore_filter_conditions=False):
 	magento_products = []
