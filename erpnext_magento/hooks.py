@@ -12,7 +12,8 @@ app_color = "grey"
 app_email = "info@frappe.io"
 app_license = "MIT"
 
-fixtures = ["Custom Field"]
+fixtures = ["Custom Field", "Custom Script"]
+
 # Includes in <head>
 # ------------------
 
@@ -71,7 +72,7 @@ fixtures = ["Custom Field"]
 
 doc_events = {
 	"Bin": {
-		"on_update": "erpnext_magento.erpnext_magento.sync_products.trigger_update_item_stock"
+		"on_update": "erpnext_magento.erpnext_magento.erpnext_magento.sync_products.trigger_update_item_stock"
 	}
 }
 

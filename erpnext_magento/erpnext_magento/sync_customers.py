@@ -179,4 +179,3 @@ def get_customer_addresses(customer):
 		where {0}""".format(' and '.join(conditions))
 			
 	return frappe.db.sql(address_query, as_dict=1)
-
