@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 import frappe
 from frappe import _
 import requests.exceptions
-from erpnext_magento.erpnext_magento.magento_requests import get_magento_customers, post_request, put_request
+from erpnext_magento.erpnext_magento.magento_requests import get_magento_customers, post_request, put_request, get_country_by_id
 from erpnext_magento.erpnext_magento.utils import make_magento_log
 
 def sync_customers():
@@ -55,14 +55,30 @@ def create_customer(magento_customer, magento_customer_list):
 def create_customer_address(customer, magento_customer):
 	for i, address in enumerate(magento_customer.get("addresses")):
 		address_title, address_type = get_address_title_and_type(customer.customer_name, i)
+
+		address_line_counter = len(address["street"])
+		if address_line_counter == 1:
+			adress_line1 = address["street"][0]
+			adress_line2 = ""
+			adress_line3 = ""
+		if address_line_counter == 2:
+			adress_line1 = address["street"][0]
+			adress_line2 = address["street"][1]
+			adress_line3 = ""
+		if address_line_counter == 3:
+			adress_line1 = address["street"][0]
+			adress_line2 = address["street"][1]
+			adress_line3 = address["street"][2]
+
 		try :
 			frappe.get_doc({
 				"doctype": "Address",
 				"magento_address_id": address.get("id"),
 				"address_title": address_title,
 				"address_type": address_type,
-				"address_line1": address["street"][0],
-				"address_line2": "{0}, {1}".format(address["street"][1], address["street"][2]),
+				"address_line1": adress_line1,
+				"address_line2": adress_line2,
+				"address_line3": adress_line3,
 				"city": address.get("city"),
 				"state": address["region"]["region"],
 				"pincode": address.get("postcode"),
@@ -120,7 +136,7 @@ def create_customer_to_magento(customer):
 		"firstname": customer['customer_name'],
 	}
 	
-	magento_customer = post_request("/admin/customers.json", { "customer": magento_customer})
+	magento_customer = post_request("customers", { "customer": magento_customer})
 	
 	customer = frappe.get_doc("Customer", customer['name'])
 	customer.magento_customer_id = magento_customer['customer'].get("id")

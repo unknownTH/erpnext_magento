@@ -9,6 +9,7 @@ def insert_test():
     doc = frappe.get_doc({
         "doctype": "Project",
         "title": "My new project",
+        "name": "My new project",
         "status": "Open"
     })
     doc.insert()
