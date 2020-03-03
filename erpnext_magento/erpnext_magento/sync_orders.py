@@ -4,7 +4,7 @@ from frappe import _
 from erpnext_magento.erpnext_magento.exceptions import MagentoError
 from erpnext_magento.erpnext_magento.utils import make_magento_log
 from erpnext_magento.erpnext_magento.sync_products import make_item
-from erpnext_magento.erpnext_magento.sync_customers import create_customer
+from erpnext_magento.erpnext_magento.sync_customers import create_erpnext_customer
 from frappe.utils import flt, nowdate, cint
 from erpnext_magento.erpnext_magento.magento_requests import get_request, get_magento_orders
 from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note, make_sales_invoice
@@ -36,7 +36,7 @@ def valid_customer_and_product(magento_order):
 	customer_id = magento_order.get("customer", {}).get("id")
 	if customer_id:
 		if not frappe.db.get_value("Customer", {"magento_customer_id": customer_id}, "name"):
-			create_customer(magento_order.get("customer"), magento_customer_list=[])
+			create_erpnext_customer(magento_order.get("customer"), magento_customer_list=[])
 	else:
 		raise _("Customer is mandatory to create order")
 

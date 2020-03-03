@@ -5,14 +5,14 @@ from . import __version__ as app_version
 
 app_name = "erpnext_magento"
 app_title = "ERPNext Magento"
-app_publisher = "Frappe Technologies Pvt. Ltd."
+app_publisher = "unknownTH"
 app_description = "Magento connector for ERPNext"
 app_icon = "octicon octicon-file-directory"
 app_color = "grey"
-app_email = "info@frappe.io"
-app_license = "MIT"
+app_email = ""
+app_license = "GNU GPL v3.0"
 
-fixtures = ["Custom Field", "Custom Script"]
+# fixtures = ["Custom Field", "Custom Script"]
 
 # Includes in <head>
 # ------------------

@@ -1,6 +1,3 @@
-// Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-// License: GNU General Public License v3. See license.txt
-
 frappe.provide("erpnext_magento.magento_settings");
 
 frappe.ui.form.on("Magento Settings", "onload", function(frm, dt, dn){
@@ -13,11 +10,6 @@ frappe.ui.form.on("Magento Settings", "onload", function(frm, dt, dn){
 		}
 	})
 	erpnext_magento.magento_settings.setup_queries(frm);
-})
-
-frappe.ui.form.on("Magento Settings", "app_type", function(frm, dt, dn) {
-	frm.toggle_reqd("api_key", (frm.doc.app_type == "Private"));
-	frm.toggle_reqd("password", (frm.doc.app_type == "Private"));
 })
 
 frappe.ui.form.on("Magento Settings", "refresh", function(frm){

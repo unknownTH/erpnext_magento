@@ -14,22 +14,30 @@ def sync_customers():
 
 def sync_magento_customers(magento_customer_list):
 	for magento_customer in get_magento_customers():
-		if not frappe.db.get_value("Customer", {"magento_customer_id": magento_customer.get('id')}, "name"):
-			create_customer(magento_customer, magento_customer_list)
+		if not frappe.db.get_value("Customer", {"magento_customer_id": magento_customer.get("id")}, "name"):
+			create_erpnext_customer(magento_customer, magento_customer_list)
+		else:
+			update_erpnext_customer(magento_customer, magento_customer_list)
 
-def create_customer(magento_customer, magento_customer_list):
+def create_erpnext_customer(magento_customer, magento_customer_list):
 	import frappe.utils.nestedset
 	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
 	
-	cust_name = (magento_customer.get("firstname") + " " + (magento_customer.get("lastname") \
-		and  magento_customer.get("lastname") or "")) if magento_customer.get("firstname")\
-		else magento_customer.get("email")
+	if  magento_customer.get("middlename"):
+		cust_name = (magento_customer.get("firstname") + " " \
+		+ magento_customer.get("middle") + " " + magento_customer.get("lastname"))
+	else:
+		cust_name = (magento_customer.get("firstname") + " " + magento_customer.get("lastname"))		
 		
 	try:
 		customer = frappe.get_doc({
 			"doctype": "Customer",
 			"name": magento_customer.get("id"),
+			"customer_first_name": magento_customer.get("firstname"),
+			"customer_middle_name": magento_customer.get("middlename"),
+			"customer_last_name": magento_customer.get("lastname"),
 			"customer_name" : cust_name,
+			"magento_customer_email" : magento_customer.get("email"),
 			"magento_customer_id": magento_customer.get("id"),
 			"sync_with_magento": 1,
 			"customer_group": magento_settings.customer_group,
@@ -40,7 +48,7 @@ def create_customer(magento_customer, magento_customer_list):
 		customer.insert()
 		
 		if customer:
-			create_customer_address(customer, magento_customer)
+			sync_magento_customer_addresses(customer, magento_customer)
 	
 		magento_customer_list.append(magento_customer.get("id"))
 		frappe.db.commit()
@@ -49,52 +57,121 @@ def create_customer(magento_customer, magento_customer_list):
 		if e.args[0] and e.args[0].startswith("402"):
 			raise e
 		else:
-			make_magento_log(title=e.message, status="Error", method="create_customer", message=frappe.get_traceback(),
+			make_magento_log(title=e.message, status="Error", method="create_erpnext_customer", message=frappe.get_traceback(),
 				request_data=magento_customer, exception=True)
+
+def update_erpnext_customer(magento_customer, magento_customer_list):
+	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
+
+	if  magento_customer.get("middlename"):
+		cust_name = (magento_customer.get("firstname") + " " \
+		+ magento_customer.get("middle") + " " + magento_customer.get("lastname"))
+	else:
+		cust_name = (magento_customer.get("firstname") + " " + magento_customer.get("lastname"))
+
+	try:
+		customer = frappe.get_doc("Customer", frappe.db.get_value("Customer", {"magento_customer_id": magento_customer.get("id")}, "name"))
+
+		customer.customer_first_name = magento_customer.get("firstname")
+		customer.customer_middle_name = magento_customer.get("middlename")
+		customer.customer_last_name = magento_customer.get("lastname")
+		customer.customer_name = cust_name
+		customer.magento_customer_email = magento_customer.get("email")
+
+		customer.flags.ignore_mandatory = True
+		customer.save()
+
+		if customer:
+			sync_magento_customer_addresses(customer, magento_customer)
 		
-def create_customer_address(customer, magento_customer):
-	for i, address in enumerate(magento_customer.get("addresses")):
-		address_title, address_type = get_address_title_and_type(customer.customer_name, i)
-
-		address_line_counter = len(address["street"])
-		if address_line_counter == 1:
-			adress_line1 = address["street"][0]
-			adress_line2 = ""
-			adress_line3 = ""
-		if address_line_counter == 2:
-			adress_line1 = address["street"][0]
-			adress_line2 = address["street"][1]
-			adress_line3 = ""
-		if address_line_counter == 3:
-			adress_line1 = address["street"][0]
-			adress_line2 = address["street"][1]
-			adress_line3 = address["street"][2]
-
-		try :
-			frappe.get_doc({
-				"doctype": "Address",
-				"magento_address_id": address.get("id"),
-				"address_title": address_title,
-				"address_type": address_type,
-				"address_line1": adress_line1,
-				"address_line2": adress_line2,
-				"address_line3": adress_line3,
-				"city": address.get("city"),
-				"state": address["region"]["region"],
-				"pincode": address.get("postcode"),
-				"country": get_magento_country_name_by_id(address.get("country_id")),
-				"phone": address.get("telephone") or "",
-				"email_id": magento_customer.get("email"),
-				"links": [{
-					"link_doctype": "Customer",
-					"link_name": customer.name
-				}]
-			}).insert()
+		magento_customer_list.append(magento_customer.get("id"))
+		frappe.db.commit()
 			
-		except Exception as e:
-			make_magento_log(title=e.message, status="Error", method="create_customer_address", message=frappe.get_traceback(),
+	except Exception as e:
+		if e.args[0] and e.args[0].startswith("402"):
+			raise e
+		else:
+			make_magento_log(title=e.message, status="Error", method="update_erpnext_customer", message=frappe.get_traceback(),
 				request_data=magento_customer, exception=True)
+
+def sync_magento_customer_addresses(customer, magento_customer):
+	for i, magento_address in enumerate(magento_customer.get("addresses")):
+		magento_address["title"], magento_address["type"] = get_address_title_and_type(customer.customer_name, i)
+
+		if not frappe.db.get_value("Address", {"magento_address_id": magento_address["id"]}, "name"):
+			create_erpnext_customer_address(customer, magento_address)
+		else:
+			update_erpnext_customer_address(customer, magento_address)
+			
+def create_erpnext_customer_address(customer, magento_address):
+	if len(magento_address["street"]) >= 2:
+		magento_address_line2 = magento_address["street"][1]
+	else:
+		magento_address_line2 = ""
+	if len(magento_address["street"]) == 3:
+		magento_address_line3 = magento_address["street"][2]
+	else:
+		magento_address_line3 = ""
+
+	try :
+		frappe.get_doc({
+			"doctype": "Address",
+			"magento_address_id": magento_address.get("id"),
+			"address_title": magento_address["title"],
+			"address_type": magento_address["type"],
+			"address_line1": magento_address["street"][0],
+			"address_line2": magento_address_line2,
+			"address_line3": magento_address_line3,
+			"city": magento_address.get("city"),
+			"state": magento_address["region"]["region"],
+			"pincode": magento_address.get("postcode"),
+			"country": get_magento_country_name_by_id(magento_address.get("country_id")),
+			"phone": magento_address.get("telephone") or "",
+			"is_primary_address": magento_address.get("default_billing"),
+			"is_shipping_address": magento_address.get("default_shipping"),
+			"links": [{
+				"link_doctype": "Customer",
+				"link_name": customer.name
+			}]
+		}).insert()
 		
+	except Exception as e:
+		make_magento_log(title=e.message, status="Error", method="create_erpnext_customer_address", message=frappe.get_traceback(),
+			request_data=magento_customer, exception=True)
+
+def update_erpnext_customer_address(customer, magento_address):
+	if len(magento_address["street"]) >= 2:
+		magento_address_line2 = magento_address["street"][1]
+	else:
+		magento_address_line2 = ""
+	if len(magento_address["street"]) == 3:
+		magento_address_line3 = magento_address["street"][2]
+	else:
+		magento_address_line3 = ""
+
+	try:
+		address = frappe.get_doc("Address", frappe.db.get_value("Address", {"magento_address_id": magento_address["id"]}, "name"))
+
+		address.address_title = magento_address["title"]
+		address.address_type = magento_address["type"]
+		address.address_line1 = magento_address["street"][0]
+		address.address_line2 = magento_address_line2
+		address.address_line3 = magento_address_line3
+		address.city = magento_address.get("city")
+		address.state = magento_address["region"]["region"]
+		address.pincode = magento_address.get("postcode")
+		address.country = get_magento_country_name_by_id(magento_address.get("country_id"))
+		address.phone = magento_address.get("telephone") or ""
+		address.is_primary_address = magento_address.get("default_billing")
+		address.is_shipping_address = magento_address.get("default_shipping")
+
+		address.flags.ignore_mandatory = True
+		address.save()
+
+	except Exception as e:
+		make_magento_log(title=e.message, status="Error", method="update_erpnext_customer_address", message=frappe.get_traceback(),
+			request_data=magento_customer, exception=True)
+	
 def get_address_title_and_type(customer_name, index):
 	address_type = _("Billing")
 	address_title = customer_name
@@ -129,7 +206,9 @@ def sync_erpnext_customers(magento_customer_list):
 	
 def update_customer_to_magento(customer, last_sync_datetime):
 	magento_customer = {
-		"firstname": customer['customer_name'],
+		"firstname": customer["customer_first_name"],
+		"middlename": customer["customer_middle_name"],
+		"lastname": customer["customer_last_name"]
 	}
 	
 	append_address_details(magento_customer)
@@ -156,15 +235,23 @@ def append_address_details(customer, magento_customer):
 		magento_customer['addresses'] = []
 		for address in customer_addresses:
 			magento_customer['addresses'].append({
-				"doctype": "Address",
+				id
+				address_line1
+				address_line2
+				address_line3
+				city
+				region_id
+				postcode
+				country_id
+				telephone
+				email
+
 				"magento_address_id": address.get("id"),
-				"address_title": address_title,
-				"address_type": address_type,
 				"address_line1": adress_line1,
 				"address_line2": adress_line2,
 				"address_line3": adress_line3,
 				"city": address.get("city"),
-				"state": address["region"]["region"],
+				"region_id": get_magento_region_id_by_name(address.get("state")),
 				"pincode": address.get("postcode"),
 				"country": get_magento_country_name_by_id(address.get("country_id")),
 				"phone": address.get("telephone") or "",
