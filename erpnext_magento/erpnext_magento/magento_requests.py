@@ -1,9 +1,10 @@
 from __future__ import unicode_literals
 import frappe
 from frappe import _
+from frappe.utils import get_request_session, get_datetime, get_time_zone, encode
 import json, math, time, pytz
 from erpnext_magento.erpnext_magento.exceptions import MagentoError
-from frappe.utils import get_request_session, get_datetime, get_time_zone, encode
+from erpnext_magento.erpnext_magento.utils import make_magento_log
 
 def get_magento_settings():
 	d = frappe.get_doc("Magento Settings")
@@ -104,23 +105,28 @@ def get_magento_country_name_by_id(country_id):
 		if country.get("id") == country_id:
 			return country.get("full_name_locale")
 	
-	make_magento_log(title="Country not Found", status="Error", method="get_magento_country_name_by_id", message="No country with name {0}".format(country_name),
+	make_magento_log(title="Country not Found", status="Error", method="get_magento_country_name_by_id", message="No country with id {0}".format(country_id),
+		request_data=country, exception=True)
+
+def get_magento_country_id_by_name(country_name):
+	countries = get_request('directory/countries')
+	for country in countries:
+		if country.get("full_name_locale") == country_name:
+			return country.get("id")
+	
+	make_magento_log(title="Country not Found", status="Error", method="get_magento_country_id_by_name", message="No country with name {0}".format(country_name),
 		request_data=country, exception=True)
 
 def get_magento_region_id_by_name(region_name):
 	countries = get_request('directory/countries')
 	for country in countries:
-		for region in country.get("available_regions"):
-			if region.get("name") == region_name:
-				return region.get("id")
-			
-			make_magento_log(title="Region not Found", status="Error", method="get_magento_region_id_by_name", message="No Magento region with name {0}".format(region_name),
-				request_data=country, exception=True)
-			return
-	
-	make_magento_log(title="Country not Found", status="Error", method="get_magento_region_id_by_name", message="No Magento country with name {0}".format(country_name),
+		if country.get("available_regions"):
+			for region in country.get("available_regions"):
+				if region.get("name") == region_name:
+					return region.get("id")
+				
+	make_magento_log(title="Region not Found", status="Error", method="get_magento_region_id_by_name", message="No Magento region with name {0}".format(region_name),
 		request_data=country, exception=True)
-	
 
 def get_magento_items(ignore_filter_conditions=False):
 	magento_products = []

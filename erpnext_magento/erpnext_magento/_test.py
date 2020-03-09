@@ -24,5 +24,6 @@ def update_doc_item():
     address.address_line1 = "changed from py test"
 
     address.flags.ignore_mandatory = True
-	address.save()
+    address.save()
+    
     frappe.db.commit()

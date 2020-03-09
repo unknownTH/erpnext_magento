@@ -24,17 +24,16 @@ def sync_magento_resources():
 	
 	if magento_settings.enable_magento:
 		try :
-			now_time = frappe.utils.now()
 			validate_magento_settings(magento_settings)
 			frappe.local.form_dict.count_dict = {}
 			#sync_products(magento_settings.price_list, magento_settings.warehouse)
 			sync_customers()
 			#sync_orders()
-			frappe.db.set_value("Magento Settings", None, "last_sync_datetime", now_time)
+			frappe.db.set_value("Magento Settings", None, "last_sync_datetime", frappe.utils.now())
 			
 			make_magento_log(title="Sync Completed", status="Success", method=frappe.local.form_dict.cmd, 
-				# message= "Updated {customers} customer(s), {products} item(s), {orders} order(s)".format(**frappe.local.form_dict.count_dict))
-				message= "Updated {customers}".format(**frappe.local.form_dict.count_dict))
+				# message= "Updated: {customers} customer(s), {products} item(s), {orders} order(s)".format(**frappe.local.form_dict.count_dict))
+				message= "Updated: {erpnext_customers} ERPNext customer(s), {magento_customers} Magento customer(s)".format(**frappe.local.form_dict.count_dict))
 
 		except Exception as e:
 			make_magento_log(title="sync has terminated", status="Error", method="sync_magento_resources",
