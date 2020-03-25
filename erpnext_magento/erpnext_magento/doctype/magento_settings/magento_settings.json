@@ -13,13 +13,15 @@
   "column_break_3",
   "api_access_token",
   "erp_settings",
-  "column_break_8",
   "customer_group",
-  "section_break_16",
-  "html_34",
+  "column_break_8",
+  "item_group",
+  "section_break",
+  "price_list_html",
   "price_lists",
   "company_dependent_settings",
   "company",
+  "warehouse",
   "column_break_20",
   "cash_bank_account",
   "section_break_22",
@@ -94,7 +96,7 @@
   {
    "fieldname": "company",
    "fieldtype": "Link",
-   "label": "For Company",
+   "label": "Company",
    "options": "Company"
   },
   {
@@ -157,19 +159,10 @@
    "label": "Sales Invoice Series"
   },
   {
-   "fieldname": "html_34",
-   "fieldtype": "HTML",
-   "options": "Map Magento Website to ERPNext Price List"
-  },
-  {
    "fieldname": "price_lists",
    "fieldtype": "Table",
    "label": "Magento Price List",
    "options": "Magento Price List"
-  },
-  {
-   "fieldname": "section_break_16",
-   "fieldtype": "Section Break"
   },
   {
    "fieldname": "column_break_20",
@@ -180,10 +173,32 @@
    "fieldtype": "Data",
    "label": "API Access Token",
    "reqd": 1
+  },
+  {
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "label": "Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "section_break",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "price_list_html",
+   "fieldtype": "HTML",
+   "options": "Map Magento Website to ERPNext Price List"
+  },
+  {
+   "description": "Item Group will set to selected group while syncing items from Magento",
+   "fieldname": "item_group",
+   "fieldtype": "Link",
+   "label": "Item Group",
+   "options": "Item Group"
   }
  ],
  "issingle": 1,
- "modified": "2020-02-26 10:38:23.682659",
+ "modified": "2020-03-15 18:34:10.992432",
  "modified_by": "Administrator",
  "module": "ERPNext Magento",
  "name": "Magento Settings",

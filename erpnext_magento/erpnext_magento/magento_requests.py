@@ -93,9 +93,6 @@ def get_total_pages(resource, ignore_filter_conditions=False):
 	count = get_request('{0}?searchCriteria[pageSize]=1&{1}'.format(resource, filter_condition))
 	return int(math.ceil(count.get('total_count') / 250))
 
-# def get_country():
-#	return get_request('/admin/countries.json')['countries']
-
 def get_websites():
 	return get_request('store/websites?searchCriteria')
 
@@ -128,21 +125,24 @@ def get_magento_region_id_by_name(region_name):
 	make_magento_log(title="Region not Found", status="Error", method="get_magento_region_id_by_name", message="No Magento region with name {0}".format(region_name),
 		request_data=country, exception=True)
 
+def get_magento_item_atrribute_values(attribute_id):
+	attribute = get_request('products/attributes/{}'.format(attribute_id))
+
+	return attribute.get("options")
+
 def get_magento_items(ignore_filter_conditions=False):
-	magento_products = []
+	magento_items = []
 
 	filter_condition = ''
+
 	if not ignore_filter_conditions:
 		filter_condition = get_filtering_condition()
 
 	for page_idx in range(0, get_total_pages("products", ignore_filter_conditions) or 1):
-		magento_products.extend(get_request('products?searchCriteria[pageSize]=250&searchCriteria[currentPage]={0}&{1}'.format(page_idx+1,
+		magento_items.extend(get_request('products?searchCriteria[pageSize]=250&searchCriteria[currentPage]={0}&{1}'.format(page_idx+1,
 			filter_condition))['items'])
 
-	return magento_products
-
-def get_magento_item_image(magento_product_id):
- 	return get_request("/admin/products/{0}/images.json".format(magento_product_id))["images"]
+	return magento_items
 
 def get_magento_orders(ignore_filter_conditions=False):
 	magento_orders = []
@@ -169,3 +169,8 @@ def get_magento_customers(ignore_filter_conditions=False):
 		magento_customers.extend(get_request('customers/search?searchCriteria[pageSize]=250&searchCriteria[currentPage]={0}&{1}'.format(page_idx+1,
 			filter_condition))['items'])
 	return magento_customers
+
+
+
+
+

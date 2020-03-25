@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 import frappe
 from frappe import _
+import frappe.utils.nestedset
 import requests.exceptions
 from erpnext_magento.erpnext_magento.magento_requests import get_magento_customers, post_request, put_request, get_magento_country_name_by_id, get_magento_country_id_by_name, get_magento_region_id_by_name
 from erpnext_magento.erpnext_magento.utils import make_magento_log
@@ -17,9 +18,9 @@ def sync_customers():
 	frappe.db.set_value("Magento Settings", None, "last_sync_datetime", frappe.utils.now())
 
 def sync_magento_customers(magento_customer_list):
+	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
+	
 	for magento_customer in get_magento_customers():
-		import frappe.utils.nestedset
-		magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
 
 		customer_dict = {
 			"doctype": "Customer",

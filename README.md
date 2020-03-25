@@ -2,14 +2,22 @@
 
 Magento connector for ERPNext
 
+
+
 ### License
 
 GNU GPL v3.0
 
 
+
 ### Limitations
 
-#### Customer
+#### Customers
 - New ERPNext customers are not synced to Magento.
 - New ERPNext customer adresses are not synced to Magento.
+
+#### Products
+- Images are not synced.
+- Stock qty is not synced.
+- Dosen't work with product options (use conifgurable product instead).
 

@@ -22,6 +22,7 @@ frappe.ui.form.on("Magento Settings", "refresh", function(frm){
 		frm.toggle_reqd("cash_bank_account", true);
 		frm.toggle_reqd("sales_order_series", true);
 		frm.toggle_reqd("customer_group", true);
+		frm.toggle_reqd("item_group", true);
 		
 		frm.toggle_reqd("sales_invoice_series", frm.doc.sync_sales_invoice);
 		frm.toggle_reqd("delivery_note_series", frm.doc.sync_delivery_note);

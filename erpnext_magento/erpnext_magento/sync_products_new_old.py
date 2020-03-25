@@ -21,34 +21,7 @@ def sync_products():
 	frappe.local.form_dict.count_dict["magento_products"] = len(erpnext_item_list)
 
 def sync_magento_items(magento_item_list):
-	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
-
 	for magento_item in get_magento_items():
-		item_dict = {
-			"doctype": "Item",
-			"magento_product_id": magento_item.get("id"),
-			"magento_variant_id": magento_item.get("variant_id"),
-			"variant_of": variant_of,
-			"sync_with_magento": 1,
-			"is_stock_item": 0,
-			"item_code": magento_item.get("name"),
-			"item_name": magento_item.get("name"),
-			"item_group": magento_settings.item_group,
-			"has_variants": has_variant,
-			"attributes": attributes or [],
-			"stock_uom": magento_item.get("uom") or _("Nos"),
-			"stock_keeping_unit": magento_item.get("sku") or get_sku(magento_item),
-			"default_warehouse": magento_settings.warehouse,
-			"default_supplier": get_supplier(magento_item),
-			"default_material_request_type": "Manufacture"
-		}
-
-		if not frappe.db.get_value("Item", {"magento_product_id": magento_item.get("id")}, "name"):
-			create_erpnext_item(magento_item, item_dict, magento_item_list)
-		else:
-			update_erpnext_item(magento_item, item_dict, magento_item_list)
-		
-"""
 		try:
 			make_item(magento_item, magento_item_list)
 
@@ -62,26 +35,27 @@ def sync_magento_items(magento_item_list):
 			else:
 				make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
 					request_data=magento_item, exception=True)
-"""
 
-def create_erpnext_item(magento_item, item_dict, magento_item_list):
-	if magento_item.get("type_id") == "simple":
+def make_item(magento_item, magento_item_list):
+	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
 
-	if magento_item.get("type_id") == "configurable":
+	if has_variants(magento_item):
 		attributes = create_attribute(magento_item)
 		create_item(magento_item, magento_settings, 1, attributes, magento_item_list=magento_item_list)
 		#create_item_variants(magento_item, magento_settings.warehouse, attributes, magento_variants_attr_list, magento_item_list=magento_item_list)
 
-	#if magento_item.get("type_id") == "virtual"::
+	#else:
 	#	magento_item["variant_id"] = magento_item['variants'][0]["id"]
 	#	create_item(magento_item, warehouse, magento_item_list=magento_item_list)
 
-def update_erpnext_item(magento_item, item_dict, magento_item_list):
-	return
+def has_variants(magento_item):
+	if magento_item.get("type_id") == "configurable":
+		return True
+	return False
 
 def create_attribute(magento_item):
 	attribute_list = []
-
+	# magento item dict
 	for magento_attr in magento_item.get("extension_attributes").get("configurable_product_options"):
 		if not frappe.db.get_value("Item Attribute", magento_attr.get("label"), "name"):
 			attr = frappe.get_doc({
@@ -110,6 +84,7 @@ def create_attribute(magento_item):
 			attribute_list.append({"attribute": magento_attr.get("label")})
 
 		else:
+			# check for attribute values
 			item_attr = frappe.get_doc("Item Attribute", magento_attr.get("label"))
 			if not item_attr.numeric_values:
 				for magento_attribute_value in get_magento_item_atrribute_values(magento_attr.get("attribute_id")):
@@ -148,6 +123,25 @@ def is_attribute_value_exists(attribute_values, magento_attribute_value):
 	return False
 
 def create_item(magento_item, magento_settings, has_variant=0, attributes=None,variant_of=None, magento_item_list=[]):
+	item_dict = {
+		"doctype": "Item",
+		"magento_product_id": magento_item.get("id"),
+		"magento_variant_id": magento_item.get("variant_id"),
+		"variant_of": variant_of,
+		"sync_with_magento": 1,
+		"is_stock_item": 0,
+		"item_code": magento_item.get("name"),
+		"item_name": magento_item.get("name"),
+		"item_group": magento_settings.item_group,
+		"has_variants": has_variant,
+		"attributes": attributes or [],
+		"stock_uom": magento_item.get("uom") or _("Nos"),
+		"stock_keeping_unit": magento_item.get("sku") or get_sku(magento_item),
+		"default_warehouse": magento_settings.warehouse,
+		"default_supplier": get_supplier(magento_item),
+		"default_material_request_type": "Manufacture"
+	}
+
 	if not is_item_exists(item_dict, attributes, variant_of=variant_of, magento_item_list=magento_item_list):
 		item_details = get_item_details(magento_item)
 
