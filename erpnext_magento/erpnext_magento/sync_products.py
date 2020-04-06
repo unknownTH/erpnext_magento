@@ -6,10 +6,10 @@ from erpnext_magento.erpnext_magento.exceptions import MagentoError
 from erpnext_magento.erpnext_magento.utils import make_magento_log, disable_magento_sync_for_item
 from erpnext.stock.utils import get_bin
 from frappe.utils import cstr, flt, cint, get_files_path
-from erpnext_magento.erpnext_magento.magento_requests import get_magento_items, get_magento_item_atrribute_values, post_request, put_request
-import base64, requests, datetime, os
-
-magento_variants_attr_list = ["option1", "option2", "option3"]
+from erpnext_magento.erpnext_magento.magento_requests import (get_magento_items, get_magento_item_attribute_details_by_code,
+	get_magento_item_attribute_details_by_name, get_magento_item_atrribute_values, get_magento_item_price_by_website,
+	get_magento_parent_item_id,	get_magento_website_name_by_id, post_request, put_request)
+import base64, datetime, requests, os
 
 def sync_products():
 	magento_item_list = []
@@ -17,7 +17,7 @@ def sync_products():
 	frappe.local.form_dict.count_dict["erpnext_products"] = len(magento_item_list)
 
 	erpnext_item_list = []
-	# sync_erpnext_items(erpnext_item_list)¨
+	sync_erpnext_items(erpnext_item_list)
 	frappe.local.form_dict.count_dict["magento_products"] = len(erpnext_item_list)
 
 def sync_magento_items(magento_item_list):
@@ -28,365 +28,266 @@ def sync_magento_items(magento_item_list):
 			"doctype": "Item",
 			"magento_product_id": magento_item.get("id"),
 			"magento_variant_id": magento_item.get("variant_id"),
-			"variant_of": variant_of,
 			"sync_with_magento": 1,
 			"is_stock_item": 0,
-			"item_code": magento_item.get("name"),
 			"item_name": magento_item.get("name"),
+			"item_code": magento_item.get("name"),
 			"item_group": magento_settings.item_group,
-			"has_variants": has_variant,
-			"attributes": attributes or [],
-			"stock_uom": magento_item.get("uom") or _("Nos"),
-			"stock_keeping_unit": magento_item.get("sku") or get_sku(magento_item),
+			"stock_uom": _("Nos"),
+			"stock_keeping_unit": magento_item.get("sku"),
 			"default_warehouse": magento_settings.warehouse,
-			"default_supplier": get_supplier(magento_item),
 			"default_material_request_type": "Manufacture"
 		}
 
 		if not frappe.db.get_value("Item", {"magento_product_id": magento_item.get("id")}, "name"):
-			create_erpnext_item(magento_item, item_dict, magento_item_list)
-		else:
-			update_erpnext_item(magento_item, item_dict, magento_item_list)
+			if magento_item.get("type_id") == "configurable":
+				item_dict["attributes"] = sync_magento_item_attributes(magento_item)
+				item_dict["has_variants"] = True
 		
-"""
-		try:
-			make_item(magento_item, magento_item_list)
+			elif magento_item.get("type_id") == "virtual":
+				erpnext_parent_item = frappe.get_doc("Item", frappe.db.get_value("Item",
+					{"magento_product_id": get_magento_parent_item_id(magento_item)}, "name"))
+		
+				item_dict["attributes"] = sync_magento_variant_item_attributes(erpnext_parent_item, magento_item)
+				item_dict["variant_of"] = erpnext_parent_item.name
+				
+			elif magento_item.get("type_id") != "simple":
+				raise Exception('Magento item type "{0}" is not compatible with ERPNext.'.format(magento_item.get("type_id")))
 
-		except MagentoError as e:
-			make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
-				request_data=magento_item, exception=True)
+			create_erpnext_item(item_dict, magento_item, magento_item_list)
 
-		except Exception as e:
-			if e.args[0] and e.args[0].startswith("402"):
-				raise e
-			else:
-				make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
-					request_data=magento_item, exception=True)
-"""
+		else:
+			if magento_item.get("type_id") == "configurable":
+				item_dict["attributes"] = sync_magento_item_attributes(magento_item)
 
-def create_erpnext_item(magento_item, item_dict, magento_item_list):
-	if magento_item.get("type_id") == "simple":
+			update_erpnext_item(item_dict, magento_item, magento_item_list)
+		
+def create_erpnext_item(item_dict, magento_item, magento_item_list):
+	try:
+		item = frappe.get_doc(item_dict)
+		item.flags.ignore_mandatory = True
+		item.insert()
+		
+		if item and magento_item.get("type_id") != "configurable":
+			sync_magento_item_prices(item.item_code, magento_item)
+	
+		magento_item_list.append(magento_item.get("id"))
+		frappe.db.commit()
+			
+	except Exception as e:
+		if e.args[0] and e.args[0].startswith("402"):
+			raise e
+		else:
+			make_magento_log(title=e.message, status="Error", method="create_erpnext_item", message=frappe.get_traceback(),
+				request_data=magento_customer, exception=True)
 
-	if magento_item.get("type_id") == "configurable":
-		attributes = create_attribute(magento_item)
-		create_item(magento_item, magento_settings, 1, attributes, magento_item_list=magento_item_list)
-		#create_item_variants(magento_item, magento_settings.warehouse, attributes, magento_variants_attr_list, magento_item_list=magento_item_list)
+def sync_magento_item_prices(erpnext_item_code, magento_item):
+	for website_id in magento_item.get("extension_attributes").get("website_ids"):
+		item_price_name = frappe.db.get_value("Item Price", {"item_code": erpnext_item_code,
+			"price_list": get_price_list_by_website_id(website_id)}, "name")
+		if not item_price_name:
+			frappe.get_doc({
+				"doctype": "Item Price",
+				"price_list": get_price_list_by_website_id(website_id),
+				"item_code": erpnext_item_code,
+				"price_list_rate": get_magento_item_price_by_website(magento_item, website_id)
+			}).insert()
 
-	#if magento_item.get("type_id") == "virtual"::
-	#	magento_item["variant_id"] = magento_item['variants'][0]["id"]
-	#	create_item(magento_item, warehouse, magento_item_list=magento_item_list)
+		else:
+			item_price = frappe.get_doc("Item Price", item_price_name)
+			item_price.price_list_rate = get_magento_item_price_by_website(magento_item, website_id)
+			item_price.save()
 
-def update_erpnext_item(magento_item, item_dict, magento_item_list):
-	return
+def get_price_list_by_website_id(website_id):
+	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
 
-def create_attribute(magento_item):
+	for price_list in magento_settings.price_lists:
+		if price_list.get("magento_website_name") == get_magento_website_name_by_id(website_id):
+			return price_list.price_list
+	
+	raise Exception("There is no maching website in ERPNext Magento settings for the Magento website {0}.".\
+		format(get_magento_website_name_by_id(website_id)))
+
+def sync_magento_item_attributes(magento_item):
 	attribute_list = []
 
-	for magento_attr in magento_item.get("extension_attributes").get("configurable_product_options"):
-		if not frappe.db.get_value("Item Attribute", magento_attr.get("label"), "name"):
-			attr = frappe.get_doc({
-				"doctype": "Item Attribute",
-				"attribute_name": magento_attr.get("label")
-			})
-
-			attr_dict.flags.ignore_mandatory = True
-			attr_dict.insert()
-
-			for magento_attribute_value in get_magento_item_atrribute_values(magento_attr.get("attribute_id")):
-				if not magento_attribute_value.get("label") == " ":
-					attr_value = frappe.get_doc({
-						"doctype": "Item Attribute Value",
-						"attribute_value": magento_attribute_value.get("label"),
-						"abbr": magento_attribute_value.get("label").upper(),
-						"parentfield": "item_attribute_values",
-						"parenttype": "Item Attribute",
-						"parent": magento_attr.get("label"),
-						"idx":99
-					})
-
-					attr_value.flags.ignore_mandatory = True
-					attr_value.insert()
-
-			attribute_list.append({"attribute": magento_attr.get("label")})
+	for magento_item_attribute in magento_item.get("extension_attributes").get("configurable_product_options"):
+		if not frappe.db.get_value("Item Attribute", magento_item_attribute.get("label"), "name"):
+			create_erpnext_item_attribute(magento_item_attribute)
 
 		else:
-			item_attr = frappe.get_doc("Item Attribute", magento_attr.get("label"))
-			if not item_attr.numeric_values:
-				for magento_attribute_value in get_magento_item_atrribute_values(magento_attr.get("attribute_id")):
-					if not magento_attribute_value.get("label") == " " and not is_attribute_value_exists(item_attr.item_attribute_values, magento_attribute_value):
-						attr_value = frappe.get_doc({
-							"doctype": "Item Attribute Value",
-							"attribute_value": magento_attribute_value.get("label"),
-							"abbr": magento_attribute_value.get("label").upper(),
-							"parentfield": "item_attribute_values",
-							"parenttype": "Item Attribute",
-							"parent": item_attr.name,
-							"idx":99
-						})
-
-						attr_value.flags.ignore_mandatory = True
-						attr_value.insert()
+			update_erpnext_item_attribute(magento_item_attribute)
 		
-				attribute_list.append({"attribute": magento_attr.get("label")})
-
-			else:
-				attribute.append({
-					"attribute": magento_attr.get("label"),
-					"from_range": item_attr.get("from_range"),
-					"to_range": item_attr.get("to_range"),
-					"increment": item_attr.get("increment"),
-					"numeric_values": item_attr.get("numeric_values")
-				})
+		attribute_list.append({"attribute": magento_item_attribute.get("label")})
 
 	return attribute_list
 
-def is_attribute_value_exists(attribute_values, magento_attribute_value):
-	for value in attribute_values:
-		if value.get("attribute_value") == magento_attribute_value.get("label"):
+def create_erpnext_item_attribute(magento_item_attribute):
+	erpnext_item_attribute = frappe.get_doc({
+		"doctype": "Item Attribute",
+		"attribute_name": magento_item_attribute.get("label")
+	})
+
+	erpnext_item_attribute.flags.ignore_mandatory = True
+	erpnext_item_attribute.insert()
+
+	for magento_item_attribute_value in get_magento_item_atrribute_values(magento_item_attribute.get("attribute_id")):
+		if not magento_item_attribute_value.get("label") == " ":
+			erpnext_item_attribute_value = frappe.get_doc({
+				"doctype": "Item Attribute Value",
+				"attribute_value": magento_item_attribute_value.get("label"),
+				"abbr": magento_item_attribute_value.get("label").upper(),
+				"parentfield": "item_attribute_values",
+				"parenttype": "Item Attribute",
+				"parent": magento_item_attribute.get("label"),
+				"idx":99
+			})
+
+			erpnext_item_attribute_value.flags.ignore_mandatory = True
+			erpnext_item_attribute_value.insert()
+
+def update_erpnext_item_attribute(magento_item_attribute):
+	erpnext_item_attribute = frappe.get_doc("Item Attribute", magento_item_attribute.get("label"))
+	if not erpnext_item_attribute.numeric_values:
+		for magento_item_attribute_value in get_magento_item_atrribute_values(magento_item_attribute.get("attribute_id")):
+			if not magento_item_attribute_value.get("label") == " " \
+			and not is_erpnext_item_attribute_value_exists(erpnext_item_attribute, magento_item_attribute_value):
+				erpnext_item_attribute_value = frappe.get_doc({
+					"doctype": "Item Attribute Value",
+					"attribute_value": magento_item_attribute_value.get("label"),
+					"abbr": magento_item_attribute_value.get("label").upper(),
+					"parentfield": "item_attribute_values",
+					"parenttype": "Item Attribute",
+					"parent": erpnext_item_attribute.name,
+					"idx":99
+				})
+
+				erpnext_item_attribute_value.flags.ignore_mandatory = True
+				erpnext_item_attribute_value.insert()
+
+	else:
+		# under construction
+		attribute.append({
+			"attribute": magento_attr.get("label"),
+			"from_range": item_attr.get("from_range"),
+			"to_range": item_attr.get("to_range"),
+			"increment": item_attr.get("increment"),
+			"numeric_values": item_attr.get("numeric_values")
+		})
+
+def is_erpnext_item_attribute_value_exists(erpnext_item_attribute, magento_item_attribute_value):
+	for erpnext_item_attribute_value in erpnext_item_attribute.item_attribute_values:
+		if erpnext_item_attribute_value.get("attribute_value") == magento_item_attribute_value.get("label"):
 			return True
 	
 	return False
 
-def create_item(magento_item, magento_settings, has_variant=0, attributes=None,variant_of=None, magento_item_list=[]):
-	if not is_item_exists(item_dict, attributes, variant_of=variant_of, magento_item_list=magento_item_list):
-		item_details = get_item_details(magento_item)
+def sync_magento_variant_item_attributes(erpnext_parent_item, magento_item):
+	attribute_list = []
 
-		if not item_details:
-			new_item = frappe.get_doc(item_dict)
-			new_item.insert()
-			name = new_item.name
+	for erpnext_parent_item_attribute in erpnext_parent_item.attributes:
+		attribute_list.append({"attribute": erpnext_parent_item_attribute.attribute,
+			"attribute_value": get_magento_variant_item_attribute_value(erpnext_parent_item_attribute.attribute, magento_item)})
 
-		else:
-			update_item(item_details, item_dict)
-			name = item_details.name
+	return attribute_list
 
-		if not has_variant:
-			add_to_price_list(magento_item, name)
+def get_magento_variant_item_attribute_value(erpnext_parent_item_attribute_name, magento_item):
+	erpnext_parent_item_attribute_code = get_magento_item_attribute_details_by_name(erpnext_parent_item_attribute_name).get("attribute_code")
 
+	for magento_item_attribute in magento_item.get("custom_attributes"):
+		if  magento_item_attribute.get("attribute_code") == erpnext_parent_item_attribute_code:
+			magento_item_attribute_details = get_magento_item_attribute_details_by_code(magento_item_attribute.get("attribute_code"))
+
+			for option in magento_item_attribute_details.get("options"):
+				if option.get("value") == magento_item_attribute.get("value"):
+					return option.get("label")
+
+def update_erpnext_item(item_dict, magento_item, magento_item_list):
+	try:
+		item = frappe.get_doc("Item", frappe.db.get_value("Item", {"magento_product_id": magento_item.get("id")}, "name"))
+
+		del item_dict["item_code"]
+		
+		item.update(item_dict)
+		item.flags.ignore_mandatory = True
+		item.save()
+
+		if item and magento_item.get("type_id") != "configurable":
+			sync_magento_item_prices(item.item_code, magento_item)
+		
+		magento_item_list.append(magento_item.get("id"))
 		frappe.db.commit()
-
-def create_item_variants(magento_item, warehouse, attributes, magento_variants_attr_list, magento_item_list):
-	template_item = frappe.db.get_value("Item", filters={"magento_product_id": magento_item.get("id")},
-		fieldname=["name", "stock_uom"], as_dict=True)
-
-	if template_item:
-		for variant in magento_item.get("variants"):
-			magento_item_variant = {
-				"id" : variant.get("id"),
-				"item_code": magento_item.get("title") + ": " + variant.get("title"),
-				"title": magento_item.get("title") + ": " + variant.get("title"),
-				"product_type": magento_item.get("product_type"),
-				"sku": variant.get("sku"),
-				"uom": template_item.stock_uom or _("Nos"),
-				"item_price": variant.get("price"),
-				"variant_id": variant.get("id"),
-				"weight_unit": variant.get("weight_unit"),
-				"weight": variant.get("weight"),
-				"variant_image": get_variant_image(magento_item, variant)
-			}
-
-			for i, variant_attr in enumerate(magento_variants_attr_list):
-				if variant.get(variant_attr):
-					attributes[i].update({"attribute_value": get_attribute_value(variant.get(variant_attr), attributes[i])})
-			create_item(magento_item_variant, warehouse, 0, attributes, template_item.name, magento_item_list=magento_item_list)
-
-def get_attribute_value(variant_attr_val, attribute):
-	attribute_value = frappe.db.sql("""select attribute_value from `tabItem Attribute Value`
-		where parent = %s and (abbr = %s or attribute_value = %s)""", (attribute["attribute"], variant_attr_val,
-		variant_attr_val), as_list=1)
-	return attribute_value[0][0] if len(attribute_value)>0 else cint(variant_attr_val)
-
-def get_sku(item):
-	if item.get("variants"):
-		return item.get("variants")[0].get("sku")
-	return ""
-
-def add_to_price_list(item, name):
-	item_price_name = frappe.db.get_value("Item Price", {"item_code": name}, "name")
-	if not item_price_name:
-		frappe.get_doc({
-			"doctype": "Item Price",
-			"price_list": frappe.get_doc("Magento Settings", "Magento Settings").price_list,
-			"item_code": name,
-			"price_list_rate": item.get("item_price") or item.get("variants")[0].get("price")
-		}).insert()
-	else:
-		item_rate = frappe.get_doc("Item Price", item_price_name)
-		item_rate.price_list_rate = item.get("item_price") or item.get("variants")[0].get("price")
-		item_rate.save()
-
-def get_item_image(magento_item):
-    if magento_item.get("image"):
-        return magento_item.get("image").get("src")
-    elif magento_item.get("variant_image"):
-        return magento_item.get("variant_image")
-    return None
-
-def get_variant_image(magento_item, variant):
-    if variant.get("image_id"):
-        for image in magento_item.get("images"):
-            if image.get("id") == variant.get("image_id"):
-                return image.get("src")
-    return None
-
-def get_supplier(magento_item):
-	if magento_item.get("vendor"):
-		supplier = frappe.db.sql("""select name from tabSupplier
-			where name = %s or magento_supplier_id = %s """, (magento_item.get("vendor"),
-			magento_item.get("vendor").lower()), as_list=1)
-
-		if not supplier:
-			supplier = frappe.get_doc({
-				"doctype": "Supplier",
-				"supplier_name": magento_item.get("vendor"),
-				"magento_supplier_id": magento_item.get("vendor").lower(),
-				"supplier_type": get_supplier_type()
-			}).insert()
-			return supplier.name
+			
+	except Exception as e:
+		if e.args[0] and e.args[0].startswith("402"):
+			raise e
 		else:
-			return magento_item.get("vendor")
-	else:
-		return ""
+			make_magento_log(title=e.message, status="Error", method="update_erpnext_item", message=frappe.get_traceback(),
+				request_data=magento_customer, exception=True)
 
-def get_supplier_type():
-	supplier_type = frappe.db.get_value("Supplier Type", _("Magento Supplier"))
-	if not supplier_type:
-		supplier_type = frappe.get_doc({
-			"doctype": "Supplier Type",
-			"supplier_type": _("Magento Supplier")
-		}).insert()
-		return supplier_type.name
-	return supplier_type
-
-def get_item_details(magento_item):
-	item_details = {}
-
-	item_details = frappe.db.get_value("Item", {"magento_product_id": magento_item.get("id")},
-		["name", "item_name"], as_dict=1)
-
-	if item_details:
-		return item_details
-
-	else:
-		item_details = frappe.db.get_value("Item", {"magento_variant_id": magento_item.get("id")},
-			["name", "item_name"], as_dict=1)
-		return item_details
-
-def is_item_exists(magento_item, attributes=None, variant_of=None, magento_item_list=[]):
-	if variant_of:
-		name = variant_of
-	else:
-		name = frappe.db.get_value("Item", {"item_name": magento_item.get("item_name")})
-
-	magento_item_list.append(cstr(magento_item.get("magento_product_id")))
-
-	if name:
-		item = frappe.get_doc("Item", name)
-		item.flags.ignore_mandatory=True
-
-		if not variant_of and not item.magento_product_id:
-			item.magento_product_id = magento_item.get("magento_product_id")
-			item.magento_variant_id = magento_item.get("magento_variant_id")
-			item.save()
-			return False
-
-		if item.magento_product_id and attributes and attributes[0].get("attribute_value"):
-			if not variant_of:
-				variant_of = frappe.db.get_value("Item",
-					{"magento_product_id": item.magento_product_id}, "variant_of")
-
-			# create conditions for all item attributes,
-			# as we are putting condition basis on OR it will fetch all items matching either of conditions
-			# thus comparing matching conditions with len(attributes)
-			# which will give exact matching variant item.
-
-			conditions = ["(iv.attribute='{0}' and iv.attribute_value = '{1}')"\
-				.format(attr.get("attribute"), attr.get("attribute_value")) for attr in attributes]
-
-			conditions = "( {0} ) and iv.parent = it.name ) = {1}".format(" or ".join(conditions), len(attributes))
-
-			parent = frappe.db.sql(""" select * from tabItem it where
-				( select count(*) from `tabItem Variant Attribute` iv
-					where {conditions} and it.variant_of = %s """.format(conditions=conditions) ,
-				variant_of, as_list=1)
-
-			if parent:
-				variant = frappe.get_doc("Item", parent[0][0])
-				variant.flags.ignore_mandatory = True
-
-				variant.magento_product_id = magento_item.get("magento_product_id")
-				variant.magento_variant_id = magento_item.get("magento_variant_id")
-				variant.save()
-			return False
-
-		if item.magento_product_id and item.magento_product_id != magento_item.get("magento_product_id"):
-			return False
-
-		return True
-
-	else:
-		return False
-
-def update_item(item_details, item_dict):
-	item = frappe.get_doc("Item", item_details.name)
-	item_dict["stock_uom"] = item_details.stock_uom
-
-	del item_dict["item_code"]
-	del item_dict["variant_of"]
-	del item_dict["item_name"]
-
-	item.update(item_dict)
-	item.flags.ignore_mandatory = True
-	item.save()
-
-def sync_erpnext_items(magento_item_list):
-	for item in get_erpnext_items():
-		if item.magento_product_id not in magento_item_list:
+def sync_erpnext_items(erpnext_item_list, magento_item_list):
+	for erpnext_item in get_erpnext_items():
+		if erpnext_item.magento_product_id not in magento_item_list:
 			try:
-				sync_item_with_magento(item, price_list, warehouse)
-				frappe.local.form_dict.count_dict["products"] += 1
+				sync_item_with_magento(erpnext_item)
+				erpnext_item_list.append(erpnext_item.name)
 
 			except MagentoError as e:
 				make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
 					request_data=item, exception=True)
 			except Exception as e:
 				make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
-					request_data=item, exception=True)
+					request_data=item, exception=True)	
 
 def get_erpnext_items():
 	erpnext_items = []
 	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
 
-	last_sync_condition, item_price_condition = "", ""
+	last_sync_condition = ""
+	item_price_condition = ""
 	if magento_settings.last_sync_datetime:
 		last_sync_condition = "and modified >= '{0}' ".format(magento_settings.last_sync_datetime)
 		item_price_condition = "and ip.modified >= '{0}' ".format(magento_settings.last_sync_datetime)
 
-	item_from_master = """select name, item_code, item_name, item_group,
-		description, magento_description, has_variants, variant_of, stock_uom, image, magento_product_id, 
-		magento_variant_id, sync_qty_with_magento, net_weight, weight_uom, default_supplier from tabItem
-		where sync_with_magento=1 and (variant_of is null or variant_of = '')
-		and (disabled is null or disabled = 0)  %s """ % last_sync_condition
+	item_from_master_sql = """SELECT name, item_code, item_name, description, magento_description,
+		has_variants, variant_of, stock_uom, image, magento_product_id, magento_variant_id,
+		sync_qty_with_magento FROM tabItem WHERE sync_with_magento=1 and (variant_of is null or variant_of = '')
+		and (disabled is null or disabled = 0) {0} ORDER BY has_variants DESC""".format(last_sync_condition)
 
-	erpnext_items.extend(frappe.db.sql(item_from_master, as_dict=1))
+	erpnext_items.extend(frappe.db.sql(item_from_master_sql, as_dict=1))
 
 	template_items = [item.name for item in erpnext_items if item.has_variants]
 
 	if len(template_items) > 0:
 		item_price_condition += ' and i.variant_of not in (%s)'%(' ,'.join(["'%s'"]*len(template_items)))%tuple(template_items)
 
-	item_from_item_price = """select i.name, i.item_code, i.item_name, i.item_group, i.description,
-		i.magento_description, i.has_variants, i.variant_of, i.stock_uom, i.image, i.magento_product_id,
-		i.magento_variant_id, i.sync_qty_with_magento, i.net_weight, i.weight_uom,
-		i.default_supplier from `tabItem` i, `tabItem Price` ip
-		where price_list = '%s' and i.name = ip.item_code
-			and sync_with_magento=1 and (disabled is null or disabled = 0) %s""" %(price_list, item_price_condition)
+	price_lists_sql = """select price_list from `tabMagento Price Lists`"""
 
-	updated_price_item_list = frappe.db.sql(item_from_item_price, as_dict=1)
+	item_from_item_price_sql = """SELECT i.name, i.item_code, i.item_name, i.item_group, i.description,
+		i.magento_description, i.has_variants, i.variant_of, i.stock_uom, i.magento_product_id,
+		i.magento_variant_id, i.sync_qty_with_magento FROM `tabItem` i, `tabItem Price` ip
+		WHERE price_list in ({0}) and i.name = ip.item_code	and sync_with_magento=1
+		and (disabled is null or disabled = 0) {1}""".format(price_lists_sql, item_price_condition)
+
+	updated_price_item_list = frappe.db.sql(item_from_item_price_sql, as_dict=1)
 
 	# to avoid item duplication
 	return [frappe._dict(tupleized) for tupleized in set(tuple(item.items())
 		for item in erpnext_items + updated_price_item_list)]
+
+
+
+
+
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------- #
+# ----------------------------------------------------------------------------------------------------------------------------------------------- #
+# ----------------------------------------------------------------------------------------------------------------------------------------------- #
+# ----------------------------------------------------------------------------------------------------------------------------------------------- #
+
+
+
+
 
 def sync_item_with_magento(item, price_list, warehouse):
 	variant_item_name_list = []
@@ -483,24 +384,6 @@ def sync_item_image(item):
 				# to avoid image duplication
 				post_request("/admin/products/{0}/images.json".format(item.magento_product_id), image_info)
 
-def validate_image_url(url):
-	""" check on given url image exists or not"""
-	res = requests.get(url)
-	if res.headers.get("content-type") in ('image/png', 'image/jpeg', 'image/gif', 'image/bmp', 'image/tiff'):
-		return True
-	return False
-
-def item_image_exists(magento_product_id, image_info):
-	"""check same image exist or not"""
-	for image in get_magento_item_image(magento_product_id):
-		if image_info.get("image").get("filename"):
-			if os.path.splitext(image.get("src"))[0].split("/")[-1] == os.path.splitext(image_info.get("image").get("filename"))[0]:
-				return True
-		elif image_info.get("image").get("src"):
-			if os.path.splitext(image.get("src"))[0].split("/")[-1] == os.path.splitext(image_info.get("image").get("src"))[0].split("/")[-1]:
-				return True
-		else:
-			return False
 
 def update_variant_item(new_item, item_code_list):
 	for i, name in enumerate(item_code_list):
@@ -545,7 +428,7 @@ def get_variant_attributes(item, price_list, warehouse):
 
 def get_price_and_stock_details(item, warehouse, price_list):
 	qty = frappe.db.get_value("Bin", {"item_code":item.get("item_code"), "warehouse": warehouse}, "actual_qty")
-	price = frappe.db.get_value("Item Price", \
+	price = frappe.db.get_value("Item Price",
 			{"price_list": price_list, "item_code":item.get("item_code")}, "price_list_rate")
 
 	item_price_and_quantity = {

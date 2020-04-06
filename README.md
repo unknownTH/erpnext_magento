@@ -20,4 +20,5 @@ GNU GPL v3.0
 - Images are not synced.
 - Stock qty is not synced.
 - Dosen't work with product options (use conifgurable product instead).
+- Beside the price only the default item values are synced from Magento to ERPNext.
 

@@ -3,7 +3,7 @@ import frappe
 from frappe import _
 from erpnext_magento.erpnext_magento.exceptions import MagentoError
 from erpnext_magento.erpnext_magento.utils import make_magento_log
-from erpnext_magento.erpnext_magento.sync_products import make_item
+#from erpnext_magento.erpnext_magento.sync_products import make_item
 from erpnext_magento.erpnext_magento.sync_customers import create_erpnext_customer
 from frappe.utils import flt, nowdate, cint
 from erpnext_magento.erpnext_magento.magento_requests import get_request, get_magento_orders
@@ -44,7 +44,7 @@ def valid_customer_and_product(magento_order):
 	for item in magento_order.get("line_items"):
 		if not frappe.db.get_value("Item", {"magento_product_id": item.get("product_id")}, "name"):
 			item = get_request("/admin/products/{}.json".format(item.get("product_id")))["product"]
-			make_item(warehouse, item, magento_item_list=[])
+		#	make_item(warehouse, item, magento_item_list=[])
 	
 	return True
 

@@ -14,8 +14,9 @@
   "api_access_token",
   "erp_settings",
   "customer_group",
-  "column_break_8",
   "item_group",
+  "column_break_8",
+  "item_attribute_set_name",
   "section_break",
   "price_list_html",
   "price_lists",
@@ -83,10 +84,10 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Customer Group will set to selected group while syncing customers from Magento",
+   "description": "Customer Group will set to selected group while syncing customers from Magento.",
    "fieldname": "customer_group",
    "fieldtype": "Link",
-   "label": "Customer Group",
+   "label": "ERPNext Customer Group",
    "options": "Customer Group"
   },
   {
@@ -162,7 +163,7 @@
    "fieldname": "price_lists",
    "fieldtype": "Table",
    "label": "Magento Price List",
-   "options": "Magento Price List"
+   "options": "Magento Price Lists"
   },
   {
    "fieldname": "column_break_20",
@@ -190,15 +191,21 @@
    "options": "Map Magento Website to ERPNext Price List"
   },
   {
-   "description": "Item Group will set to selected group while syncing items from Magento",
+   "description": "Item Group will set to selected group while syncing items from Magento.",
    "fieldname": "item_group",
    "fieldtype": "Link",
-   "label": "Item Group",
+   "label": "ERPNext Item Group",
    "options": "Item Group"
+  },
+  {
+   "description": "Item attribute set will set to selected attribute set while syncing items to Magento.",
+   "fieldname": "item_attribute_set_name",
+   "fieldtype": "Data",
+   "label": "Magento Item Attribute Set Name"
   }
  ],
  "issingle": 1,
- "modified": "2020-03-15 18:34:10.992432",
+ "modified": "2020-04-05 18:01:30.770871",
  "modified_by": "Administrator",
  "module": "ERPNext Magento",
  "name": "Magento Settings",

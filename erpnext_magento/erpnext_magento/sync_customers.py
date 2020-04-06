@@ -21,7 +21,6 @@ def sync_magento_customers(magento_customer_list):
 	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
 	
 	for magento_customer in get_magento_customers():
-
 		customer_dict = {
 			"doctype": "Customer",
 			"customer_first_name": magento_customer.get("firstname"),
