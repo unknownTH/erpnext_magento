@@ -57,3 +57,31 @@ name=None, request_data={}):
 		
 		log.save(ignore_permissions=True)
 		frappe.db.commit()
+
+def validate_item_magento_product_id(doc, method):
+	# called via hook
+	item_name = frappe.db.get_value("Item", {"magento_product_id": doc.get("magento_product_id")}, "name")
+
+	if doc.get("magento_product_id") != 0 and item_name and item_name != doc.name:
+		throw(_(f'Magento Product Id {doc.get("magento_product_id")} is already assigned to Item {item_name}.'))
+
+def validate_sales_order_magento_order_id(doc, method):
+	# called via hook
+	sales_order_name = frappe.db.get_value("Sales Order", {"magento_order_id": doc.get("magento_order_id")}, "name")
+
+	if sales_order_name and sales_order_name != doc.name:
+		throw(_(f'Magento Order Id {doc.get("magento_order_id")} is already assigned to Sales Order {sales_order_name}.'))
+
+def validate_delivery_note_magento_shipment_id(doc, method):
+	# called via hook
+	delivery_note_name = frappe.db.get_value("Delivery Note", {"magento_shipment_id": doc.get("magento_shipment_id")}, "name")
+
+	if delivery_note_name and delivery_note_name != doc.name:
+		throw(_(f'Magento Shipment Id {doc.get("magento_shipment_id")} is already assigned to Delivery Note {delivery_note_name}.'))
+
+def validate_sales_invoice_magento_invoice_id(doc, method):
+	# called via hook
+	sales_invoice_name = frappe.db.get_value("Sales Invoice", {"magento_invoice_id": doc.get("magento_invoice_id")}, "name")
+
+	if sales_invoice_name and sales_invoice_name != doc.name:
+		throw(_(f'Magento Invoice Id {doc.get("magento_invoice_id")} is already assigned to Sales Invoice {sales_invoice_name}.'))

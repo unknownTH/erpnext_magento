@@ -3,202 +3,216 @@ import frappe
 from frappe import _
 from erpnext_magento.erpnext_magento.exceptions import MagentoError
 from erpnext_magento.erpnext_magento.utils import make_magento_log
-#from erpnext_magento.erpnext_magento.sync_products import make_item
-from erpnext_magento.erpnext_magento.sync_customers import create_erpnext_customer
+from erpnext_magento.erpnext_magento.sync_customers import sync_magento_customer_addresses
 from frappe.utils import flt, nowdate, cint
-from erpnext_magento.erpnext_magento.magento_requests import get_request, get_magento_orders
+from erpnext_magento.erpnext_magento.magento_requests import (
+	get_request,
+	get_magento_orders,
+	get_magento_order_invoices,
+	get_magento_order_shipments,
+	get_magento_website_name_by_store_id
+)
 from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note, make_sales_invoice
+from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 
 def sync_orders():
-	sync_magento_orders()
+	magento_order_list = []
+	sync_magento_orders(magento_order_list)
+	frappe.local.form_dict.count_dict["erpnext_orders"] = len(magento_order_list)
 
-def sync_magento_orders():
-	frappe.local.form_dict.count_dict["orders"] = 0
+def sync_magento_orders(magento_order_list):
 	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
-	
+
 	for magento_order in get_magento_orders():
-		if valid_customer_and_product(magento_order):
-			try:
-				create_order(magento_order, magento_settings)
-				frappe.local.form_dict.count_dict["orders"] += 1
+		if magento_order.get("customer_is_guest") == 1:
+			magento_order.update({"erpnext_guest_customer_name": get_erpnext_guest_customer_name(magento_order, magento_settings)})
 
-			except MagentoError as e:
-				make_magento_log(status="Error", method="sync_magento_orders", message=frappe.get_traceback(),
-					request_data=magento_order, exception=True)
-			except Exception as e:
-				if e.args and e.args[0] and e.args[0].decode("utf-8").startswith("402"):
-					raise e
-				else:
-					make_magento_log(title=e.message, status="Error", method="sync_magento_orders", message=frappe.get_traceback(),
-						request_data=magento_order, exception=True)
-				
-def valid_customer_and_product(magento_order):
-	customer_id = magento_order.get("customer", {}).get("id")
-	if customer_id:
-		if not frappe.db.get_value("Customer", {"magento_customer_id": customer_id}, "name"):
-			create_erpnext_customer(magento_order.get("customer"), magento_customer_list=[])
-	else:
-		raise _("Customer is mandatory to create order")
+		try:
+			if not frappe.db.get_value("Sales Order", {"magento_order_id": magento_order.get("entity_id")}, "name"):
+				create_erpnext_sales_order(magento_order, magento_settings)
+			
+			if cint(magento_settings.sync_delivery_note):
+				sync_magento_shipments(magento_order, magento_settings)
+			
+			if cint(magento_settings.sync_sales_invoice):
+				sync_magento_invoices(magento_order, magento_settings)
 
-	warehouse = frappe.get_doc("Magento Settings", "Magento Settings").warehouse
-	for item in magento_order.get("line_items"):
-		if not frappe.db.get_value("Item", {"magento_product_id": item.get("product_id")}, "name"):
-			item = get_request("/admin/products/{}.json".format(item.get("product_id")))["product"]
-		#	make_item(warehouse, item, magento_item_list=[])
+			magento_order_list.append(magento_order.get("entity_id"))
+
+		except MagentoError as e:
+			make_magento_log(status="Error", method="sync_magento_orders", message=frappe.get_traceback(),
+				request_data=magento_order, exception=True)
 	
-	return True
+		except Exception as e:
+			if e.args and e.args[0] and e.args[0].decode("utf-8").startswith("402"):
+				raise e
+			else:
+				make_magento_log(title=e.message, status="Error", method="sync_magento_orders", message=frappe.get_traceback(),
+					request_data=magento_order, exception=True)
+			
+def get_erpnext_guest_customer_name(magento_order, magento_settings):
+	erpnext_guest_customer_name = frappe.db.get_value("Customer", {"magento_customer_email": magento_order.get("customer_email")}, "name")
+	erpnext_guest_customer_dict = {
+		"doctype": "Customer",
+		"customer_first_name": magento_order.get("customer_firstname"),
+		"customer_last_name": magento_order.get("customer_lastname"),
+		"customer_name": f'{magento_order.get("customer_firstname")} {magento_order.get("customer_lastname")}',
+		"magento_customer_email" : magento_order.get("customer_email"),
+		"customer_group": magento_settings.customer_group,
+		"customer_details": "Magento Guest",
+		"territory": frappe.utils.nestedset.get_root_of("Territory"),
+		"customer_type": _("Individual")
+	}
 
-def create_order(magento_order, magento_settings, company=None):
-	so = create_sales_order(magento_order, magento_settings, company)
-	create_sales_invoice(magento_order, magento_settings, so)
-	if magento_order.get("financial_status") == "paid" and cint(magento_settings.sync_sales_invoice):
-		si = frappe.db.get_value("Sales Invoice", {"magento_order_id": magento_order.get("id")}, "name")
-		si = frappe.get_doc("Sales Invoice", si)
-		si.submit()
-		make_payament_entry_against_sales_invoice(si, magento_settings)
-		frappe.db.commit()
-
-	if magento_order.get("fulfillments") and cint(magento_settings.sync_delivery_note):
-		create_delivery_note(magento_order, magento_settings, so)
-
-def create_sales_order(magento_order, magento_settings, company=None):
-	so = frappe.db.get_value("Sales Order", {"magento_order_id": magento_order.get("id")}, "name")
-	if not so:
-		so = frappe.get_doc({
-			"doctype": "Sales Order",
-			"naming_series": magento_settings.sales_order_series or "SO-Magento-",
-			"magento_order_id": magento_order.get("id"),
-			"customer": frappe.db.get_value("Customer", {"magento_customer_id": magento_order.get("customer").get("id")}, "name"),
-			"delivery_date": nowdate(),
-			"company": magento_settings.company,
-			"selling_price_list": magento_settings.price_list,
-			"ignore_pricing_rule": 1,
-			"items": get_order_items(magento_order.get("line_items"), magento_settings),
-			"taxes": get_order_taxes(magento_order, magento_settings),
-			"apply_discount_on": "Grand Total",
-			"discount_amount": get_discounted_amount(magento_order),
-		})
-		
-		if company:
-			so.update({
-				"company": company,
-				"status": "Draft"
-			})
-		so.flags.ignore_mandatory = True
-		so.save(ignore_permissions=True)
-		so.submit()
-
-	else:
-		so = frappe.get_doc("Sales Order", so)
-		
-	frappe.db.commit()
-	return so
-
-def create_sales_invoice(magento_order, magento_settings, so):
-	if not frappe.db.get_value("Sales Invoice", {"magento_order_id": magento_order.get("id")}, "name")\
-		and so.docstatus==1 and not so.per_billed:
-		si = make_sales_invoice(so.name)
-		si.magento_order_id = magento_order.get("id")
-		si.naming_series = magento_settings.sales_invoice_series or "SI-Magento-"
-		si.flags.ignore_mandatory = True
-		set_cost_center(si.items, magento_settings.cost_center)
-		si.save()
-		frappe.db.commit()
-
-def set_cost_center(items, cost_center):
-	for item in items:
-		item.cost_center = cost_center
-
-def make_payament_entry_against_sales_invoice(doc, magento_settings):
-	from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
-	if not doc.status == "Paid":
-		payemnt_entry = get_payment_entry(doc.doctype, doc.name, bank_account=magento_settings.cash_bank_account)
-		payemnt_entry.flags.ignore_mandatory = True
-		payemnt_entry.reference_no = doc.name
-		payemnt_entry.reference_date = nowdate()
-		payemnt_entry.submit()
-
-def create_delivery_note(magento_order, magento_settings, so):
-	for fulfillment in magento_order.get("fulfillments"):
-		if not frappe.db.get_value("Delivery Note", {"magento_fulfillment_id": fulfillment.get("id")}, "name")\
-			and so.docstatus==1:
-			dn = make_delivery_note(so.name)
-			dn.magento_order_id = fulfillment.get("order_id")
-			dn.magento_fulfillment_id = fulfillment.get("id")
-			dn.naming_series = magento_settings.delivery_note_series or "DN-Magento-"
-			dn.items = get_fulfillment_items(dn.items, fulfillment.get("line_items"), magento_settings)
-			dn.flags.ignore_mandatory = True
-			dn.save()
-			dn.submit()
+	try:
+		if not erpnext_guest_customer_name:
+			erpnext_guest_customer = frappe.get_doc(erpnext_guest_customer_dict)
+			erpnext_guest_customer.flags.ignore_mandatory = True
+			erpnext_guest_customer.insert()
 			frappe.db.commit()
 
-def get_fulfillment_items(dn_items, fulfillment_items, magento_settings):
-	return [dn_item.update({"qty": item.get("quantity")}) for item in fulfillment_items for dn_item in dn_items\
-			if get_item_code(item) == dn_item.item_code]
+		else:
+			erpnext_guest_customer = frappe.get_doc("Customer", erpnext_guest_customer_name)
+			erpnext_guest_customer.update(erpnext_guest_customer_dict)
+			erpnext_guest_customer.flags.ignore_mandatory = True
+			erpnext_guest_customer.save()
+			frappe.db.commit()
+
+		sync_erpnext_guest_customer_adresses(erpnext_guest_customer, magento_order)
+
+	except Exception as e:
+		make_magento_log(title=e.message, status="Error", method="get_erpnext_guest_customer_name", message=frappe.get_traceback(),
+			request_data=magento_order, exception=True)
+
+	return erpnext_guest_customer.name
+
+def sync_erpnext_guest_customer_adresses(erpnext_guest_customer, magento_order):
+	magento_order_addresses = []
+	magento_order_addresses.append(magento_order.get("billing_address"))
+	magento_order_addresses.append(magento_order.get("extension_attributes").get("shipping_assignments")[0].get("shipping").get("address"))
+
+	sync_magento_customer_addresses(erpnext_guest_customer, magento_order_addresses)
+
+def create_erpnext_sales_order(magento_order, magento_settings):
+	erpnext_sales_order = frappe.get_doc({
+		"doctype": "Sales Order",
+		"naming_series": magento_settings.sales_order_series or "SO-MAGENTO-",
+		"magento_order_id": magento_order.get("entity_id"),
+		"magento_payment_method": magento_order.get("payment").get("method"),
+		"customer": magento_order.get("erpnext_guest_customer_name") or frappe.db.get_value("Customer", {"magento_customer_id": magento_order.get("customer_id")}, "name"),
+		"delivery_date": nowdate(),
+		"company": magento_settings.company,
+		"selling_price_list": get_price_list(magento_order, magento_settings),
+		"ignore_pricing_rule": 1,
+		"items": get_order_items(magento_order.get("items"), magento_settings),
+		"taxes": get_order_taxes(magento_order, magento_settings),
+		"apply_discount_on": "Grand Total",
+		"discount_amount": magento_order.get("discount_amount")
+	})
 	
-def get_discounted_amount(order):
-	discounted_amount = 0.0
-	for discount in order.get("discount_codes"):
-		discounted_amount += flt(discount.get("amount"))
-	return discounted_amount
+	erpnext_sales_order.flags.ignore_mandatory = True
+	erpnext_sales_order.save()
+	erpnext_sales_order.submit()	
+	frappe.db.commit()
+
+def get_price_list(magento_order, magento_settings):
+	for price_list in magento_settings.price_lists:
+		if price_list.magento_website_name == get_magento_website_name_by_store_id(magento_order.get("store_id")):
+			return price_list.price_list
 
 def get_order_items(order_items, magento_settings):
 	items = []
+
 	for magento_item in order_items:
-		item_code = get_item_code(magento_item)
-		items.append({
-			"item_code": item_code,
-			"item_name": magento_item.get("name"),
-			"rate": magento_item.get("price"),
-			"delivery_date": nowdate(),
-			"qty": magento_item.get("quantity"),
-			"stock_uom": magento_item.get("sku"),
-			"warehouse": magento_settings.warehouse
-		})
+		if magento_item.get("product_type") != "configurable":
+			items.append({
+				"item_code": frappe.db.get_value("Item", {"magento_product_id": magento_item.get("product_id")}, "item_code"),
+				"item_name": magento_item.get("name"),
+				"rate": magento_item.get("base_original_price"),
+				"delivery_date": nowdate(),
+				"qty": magento_item.get("qty_ordered"),
+				"magento_sku": magento_item.get("sku"),
+			})
+
 	return items
-
-def get_item_code(magento_item):
-	item_code = frappe.db.get_value("Item", {"magento_variant_id": magento_item.get("variant_id")}, "item_code")
-	if not item_code:
-		item_code = frappe.db.get_value("Item", {"magento_product_id": magento_item.get("product_id")}, "item_code")
-
-	return item_code
 
 def get_order_taxes(magento_order, magento_settings):
 	taxes = []
-	for tax in magento_order.get("tax_lines"):
+
+	for tax in magento_order.get("extension_attributes").get("applied_taxes"):
 		taxes.append({
 			"charge_type": _("On Net Total"),
 			"account_head": get_tax_account_head(tax),
-			"description": "{0} - {1}%".format(tax.get("title"), tax.get("rate") * 100.0),
-			"rate": tax.get("rate") * 100.00,
-			"included_in_print_rate": 1 if magento_order.get("taxes_included") else 0,
-			"cost_center": magento_settings.cost_center
-		})
-
-	taxes = update_taxes_with_shipping_lines(taxes, magento_order.get("shipping_lines"), magento_settings)
-
-	return taxes
-
-def update_taxes_with_shipping_lines(taxes, shipping_lines, magento_settings):
-	for shipping_charge in shipping_lines:
-		taxes.append({
-			"charge_type": _("Actual"),
-			"account_head": get_tax_account_head(shipping_charge),
-			"description": shipping_charge["title"],
-			"tax_amount": shipping_charge["price"],
+			"description": f'{tax.get("code")} - {tax.get("percent")}%',
+			"rate": tax.get("percent"),
+			"included_in_print_rate": 1,
 			"cost_center": magento_settings.cost_center
 		})
 
 	return taxes
 
 def get_tax_account_head(tax):
-	tax_title = tax.get("title").encode("utf-8")
-
-	tax_account =  frappe.db.get_value("Magento Tax Account", \
-		{"parent": "Magento Settings", "magento_tax": tax_title}, "tax_account")
+	tax_account =  frappe.db.get_value("Magento Tax Account", {"parent": "Magento Settings", "magento_tax": tax.get("code")}, "tax_account")
 
 	if not tax_account:
-		frappe.throw("Tax Account not specified for Magento Tax {0}".format(tax.get("title")))
+		frappe.throw(f'Tax Account not specified for Magento Tax {tax.get("code")}')
 
 	return tax_account
+
+def sync_magento_shipments(magento_order, magento_settings):
+	erpnext_sales_order_name = frappe.db.get_value("Sales Order", {"magento_order_id": magento_order.get("entity_id")}, "name")
+	erpnext_sales_order = frappe.get_doc("Sales Order", erpnext_sales_order_name)
+
+	for shipment in get_magento_order_shipments(magento_order.get("entity_id")):
+		if not frappe.db.get_value("Delivery Note", {"magento_shipment_id": shipment.get("entity_id")}, "name")	and erpnext_sales_order.docstatus == 1:
+			delivery_note = make_delivery_note(erpnext_sales_order.name)
+			delivery_note.magento_order_id = shipment.get("order_id")
+			delivery_note.magento_shipment_id = shipment.get("entity_id")
+			delivery_note.naming_series = magento_settings.delivery_note_series or "delivery_note-Magento-"
+			delivery_note.items = get_magento_shipment_items(delivery_note.items, shipment.get("items"), magento_settings)
+			delivery_note.flags.ignore_mandatory = True
+			delivery_note.save()
+			delivery_note.submit()
+			frappe.db.commit()
+
+def get_magento_shipment_items(delivery_note_items, shipment_items, magento_settings):
+	return [delivery_note_item.update({"qty": item.get("qty_shipped")}) for item in shipment_items for delivery_note_item in delivery_note_items\
+			if frappe.db.get_value("Item", {"magento_product_id": item.get("product_id")}, "item_code") == delivery_note_item.item_code]
+
+def sync_magento_invoices(magento_order, magento_settings):
+	erpnext_sales_order_name = frappe.db.get_value("Sales Order", {"magento_order_id": magento_order.get("entity_id")}, "name")
+	erpnext_sales_order = frappe.get_doc("Sales Order", erpnext_sales_order_name)
+
+	for invoice in get_magento_order_invoices(magento_order.get("entity_id")):
+		erpnext_sales_invoice_name = frappe.db.get_value("Sales Invoice", {"magento_order_id": magento_order.get("entity_id")}, "name")
+		
+		if not erpnext_sales_invoice_name and erpnext_sales_order.docstatus==1:
+			erpnext_sales_invoice = make_sales_invoice(erpnext_sales_order.name)
+			erpnext_sales_invoice.magento_order_id = magento_order.get("entity_id")
+			erpnext_sales_invoice.naming_series = magento_settings.sales_invoice_series or "erpnext_sales_invoice-Magento-"
+			erpnext_sales_invoice.flags.ignore_mandatory = True
+			set_cost_center(erpnext_sales_invoice.items, magento_settings.cost_center)
+			erpnext_sales_invoice.save()
+			frappe.db.commit()
+		
+		else:
+			erpnext_sales_invoice = frappe.get_doc("Sales Invoice", erpnext_sales_invoice_name)
+
+		if invoice.get("state") == 2:
+			erpnext_sales_invoice.submit()
+			frappe.db.commit()
+
+			make_payament_entry_against_sales_invoice(erpnext_sales_invoice, magento_settings)
+
+def set_cost_center(items, cost_center):
+	for item in items:
+		item.cost_center = cost_center
+
+def make_payament_entry_against_sales_invoice(doc, magento_settings):
+	if not doc.status == "Paid":
+		payemnt_entry = get_payment_entry(doc.doctype, doc.name, bank_account=magento_settings.cash_bank_account)
+		payemnt_entry.flags.ignore_mandatory = True
+		payemnt_entry.reference_no = doc.name
+		payemnt_entry.reference_date = nowdate()
+		payemnt_entry.submit()
+		frappe.db.commit()

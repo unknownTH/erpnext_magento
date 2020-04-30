@@ -3,16 +3,16 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "magento_tax",
+  "magento_website_name",
   "column_break_2",
-  "tax_account"
+  "price_list"
  ],
  "fields": [
   {
-   "fieldname": "magento_tax",
+   "fieldname": "magento_website_name",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Magento Tax/Shipping Title",
+   "label": "Magento Website Name",
    "reqd": 1
   },
   {
@@ -20,19 +20,19 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "tax_account",
+   "fieldname": "price_list",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "ERPNext Account",
-   "options": "Account",
+   "label": "ERPNext Price List",
+   "options": "Price List",
    "reqd": 1
   }
  ],
  "istable": 1,
- "modified": "2020-04-28 09:50:01.226348",
+ "modified": "2020-04-18 18:55:56.946511",
  "modified_by": "Administrator",
  "module": "ERPNext Magento",
- "name": "Magento Tax Account",
+ "name": "Magento Price List",
  "owner": "Administrator",
  "permissions": [],
  "sort_field": "modified",

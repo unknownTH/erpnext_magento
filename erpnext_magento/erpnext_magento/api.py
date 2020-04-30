@@ -28,13 +28,14 @@ def sync_magento_resources():
 			frappe.local.form_dict.count_dict = {}
 			sync_products()
 			sync_customers()
-			#sync_orders()
+			sync_orders()
 			frappe.db.set_value("Magento Settings", None, "last_sync_datetime", frappe.utils.now())
 
 			make_magento_log(title="Sync Completed", status="Success", method=frappe.local.form_dict.cmd, 
 				# message= "Updated: {customers} customer(s), {products} item(s), {orders} order(s)".format(**frappe.local.form_dict.count_dict))
 				message= "Updated: \n {erpnext_customers} ERPNext customer(s), {magento_customers} Magento customer(s) \n \
-{erpnext_products} ERPNext products(s), {magento_products} Magento products(s)".format(**frappe.local.form_dict.count_dict))
+{erpnext_products} ERPNext products(s), {magento_products} Magento products(s) \n \
+{erpnext_orders} ERPNext order(s)".format(**frappe.local.form_dict.count_dict))
 
 		except Exception as e:
 			make_magento_log(title="sync has terminated", status="Error", method="sync_magento_resources",

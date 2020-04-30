@@ -1,0 +1,29 @@
+{
+ "creation": "2020-04-18 18:21:32.037300",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "item_variant_attribute"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_variant_attribute",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Variant Attribute",
+   "options": "Item Attribute",
+   "reqd": 1
+  }
+ ],
+ "istable": 1,
+ "modified": "2020-04-21 10:52:59.170655",
+ "modified_by": "Administrator",
+ "module": "ERPNext Magento",
+ "name": "Magento Settings Item Variant Attribute",
+ "owner": "Administrator",
+ "permissions": [],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

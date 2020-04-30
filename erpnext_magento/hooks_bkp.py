@@ -70,11 +70,21 @@ after_install = "erpnext_magento.install.after_install"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"Item": {
-# 		"validate": "erpnext_magento.erpnext_magento.utils.validate_item_magento_sku",
-# 	}
-# }
+doc_events = {
+	"Item": {
+		"validate": "erpnext_magento.erpnext_magento.utils.validate_item_magento_sku",
+		"validate": "erpnext_magento.erpnext_magento.utils.validate_item_magento_product_id"
+	},
+	"Sales Order": {
+		"validate": "erpnext_magento.erpnext_magento.utils.validate_sales_order_magento_order_id"
+	},
+	"Delivery Note ": {
+		"validate": "erpnext_magento.erpnext_magento.utils.validate_delivery_note_magento_shipment_id"
+	},
+	"Sales Invoice": {
+		"validate": "erpnext_magento.erpnext_magento.utils.validate_sales_invoice_magento_invoice_id"
+	}
+}
 
 # Scheduled Tasks
 # ---------------

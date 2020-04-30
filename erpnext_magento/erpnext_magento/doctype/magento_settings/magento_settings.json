@@ -14,15 +14,18 @@
   "api_access_token",
   "erp_settings",
   "customer_group",
-  "item_group",
   "column_break_8",
-  "item_attribute_set_name",
+  "item_group",
+  "item_variant_attributes_section_break",
+  "item_variant_attributes_html",
+  "item_variant_attributes",
   "section_break",
-  "price_list_html",
+  "default_price_list",
+  "price_lists_html",
   "price_lists",
   "company_dependent_settings",
   "company",
-  "warehouse",
+  "cost_center",
   "column_break_20",
   "cash_bank_account",
   "section_break_22",
@@ -162,8 +165,7 @@
   {
    "fieldname": "price_lists",
    "fieldtype": "Table",
-   "label": "Magento Price List",
-   "options": "Magento Price Lists"
+   "options": "Magento Price List"
   },
   {
    "fieldname": "column_break_20",
@@ -176,19 +178,9 @@
    "reqd": 1
   },
   {
-   "fieldname": "warehouse",
-   "fieldtype": "Link",
-   "label": "Warehouse",
-   "options": "Warehouse"
-  },
-  {
    "fieldname": "section_break",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "price_list_html",
-   "fieldtype": "HTML",
-   "options": "Map Magento Website to ERPNext Price List"
+   "fieldtype": "Section Break",
+   "label": "Price Lists"
   },
   {
    "description": "Item Group will set to selected group while syncing items from Magento.",
@@ -198,14 +190,42 @@
    "options": "Item Group"
   },
   {
-   "description": "Item attribute set will set to selected attribute set while syncing items to Magento.",
-   "fieldname": "item_attribute_set_name",
-   "fieldtype": "Data",
-   "label": "Magento Item Attribute Set Name"
+   "fieldname": "item_variant_attributes_section_break",
+   "fieldtype": "Section Break",
+   "label": "Item Variant Attributes"
+  },
+  {
+   "fieldname": "item_variant_attributes_html",
+   "fieldtype": "HTML",
+   "options": "Define which item attributes have to be synced. All attributes which are used to define item variants have to be synced. The attributes have to have the same name in ERPNext an Magento. Rename has to be done manually in both systems."
+  },
+  {
+   "fieldname": "item_variant_attributes",
+   "fieldtype": "Table",
+   "options": "Magento Settings Item Variant Attribute"
+  },
+  {
+   "description": "Prices from this price list are set as default price in Magento.",
+   "fieldname": "default_price_list",
+   "fieldtype": "Link",
+   "label": "Default Price List",
+   "options": "Price List"
+  },
+  {
+   "fieldname": "price_lists_html",
+   "fieldtype": "HTML",
+   "label": "Map Websites and Price Lists",
+   "options": "Map Magento Website to ERPNext Price List"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "issingle": 1,
- "modified": "2020-04-05 18:01:30.770871",
+ "modified": "2020-04-28 09:51:24.372739",
  "modified_by": "Administrator",
  "module": "ERPNext Magento",
  "name": "Magento Settings",
