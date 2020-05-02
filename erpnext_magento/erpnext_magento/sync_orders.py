@@ -10,7 +10,8 @@ from erpnext_magento.erpnext_magento.magento_requests import (
 	get_magento_orders,
 	get_magento_order_invoices,
 	get_magento_order_shipments,
-	get_magento_website_name_by_store_id
+	get_magento_website_name_by_store_id,
+	post_request
 )
 from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note, make_sales_invoice
 from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
@@ -27,9 +28,21 @@ def sync_magento_orders(magento_order_list):
 		if magento_order.get("customer_is_guest") == 1:
 			magento_order.update({"erpnext_guest_customer_name": get_erpnext_guest_customer_name(magento_order, magento_settings)})
 
+		else:
+			### Needed becouse of a bug in Magento. GitHub issue #5013.
+			erpnext_customer_name = frappe.db.get_value("Customer", {"magento_customer_id": magento_order.get("customer_id")}, "name")
+			erpnext_customer = frappe.get_doc("Customer", erpnext_customer_name)
+
+			magento_order_addresses = []
+			magento_order_addresses.append(magento_order.get("billing_address"))
+			magento_order_addresses.append(magento_order.get("extension_attributes").get("shipping_assignments")[0].get("shipping").get("address"))
+
+			sync_magento_customer_addresses(erpnext_customer, magento_order_addresses)
+
 		try:
 			if not frappe.db.get_value("Sales Order", {"magento_order_id": magento_order.get("entity_id")}, "name"):
 				create_erpnext_sales_order(magento_order, magento_settings)
+				set_order_as_complete_in_magento(magento_order)
 			
 			if cint(magento_settings.sync_delivery_note):
 				sync_magento_shipments(magento_order, magento_settings)
@@ -78,20 +91,11 @@ def get_erpnext_guest_customer_name(magento_order, magento_settings):
 			erpnext_guest_customer.save()
 			frappe.db.commit()
 
-		sync_erpnext_guest_customer_adresses(erpnext_guest_customer, magento_order)
-
 	except Exception as e:
 		make_magento_log(title=e.message, status="Error", method="get_erpnext_guest_customer_name", message=frappe.get_traceback(),
 			request_data=magento_order, exception=True)
 
 	return erpnext_guest_customer.name
-
-def sync_erpnext_guest_customer_adresses(erpnext_guest_customer, magento_order):
-	magento_order_addresses = []
-	magento_order_addresses.append(magento_order.get("billing_address"))
-	magento_order_addresses.append(magento_order.get("extension_attributes").get("shipping_assignments")[0].get("shipping").get("address"))
-
-	sync_magento_customer_addresses(erpnext_guest_customer, magento_order_addresses)
 
 def create_erpnext_sales_order(magento_order, magento_settings):
 	erpnext_sales_order = frappe.get_doc({
@@ -100,6 +104,8 @@ def create_erpnext_sales_order(magento_order, magento_settings):
 		"magento_order_id": magento_order.get("entity_id"),
 		"magento_payment_method": magento_order.get("payment").get("method"),
 		"customer": magento_order.get("erpnext_guest_customer_name") or frappe.db.get_value("Customer", {"magento_customer_id": magento_order.get("customer_id")}, "name"),
+		"address": get_sales_order_erpnext_address("billing", magento_order),
+		"shipping_address_name": get_sales_order_erpnext_address("shipping", magento_order),
 		"delivery_date": nowdate(),
 		"company": magento_settings.company,
 		"selling_price_list": get_price_list(magento_order, magento_settings),
@@ -114,6 +120,32 @@ def create_erpnext_sales_order(magento_order, magento_settings):
 	erpnext_sales_order.save()
 	erpnext_sales_order.submit()	
 	frappe.db.commit()
+
+def get_sales_order_erpnext_address(address_type, magento_order):
+	if address_type == "billing": 
+		magento_order_address = magento_order.get("billing_address")
+
+	elif address_type == "shipping":
+		magento_order_address = magento_order.get("extension_attributes").get("shipping_assignments")[0].get("shipping").get("address")
+
+	else:
+		frappe.throw(f'Address type "{address_type}" not valid for function "get_sales_order_erpnext_address".')
+
+	if magento_order_address.get("customer_address_id"):
+		return frappe.db.get_value("Address", {"magento_address_id": magento_order_address.get("customer_address_id")}, "name")
+
+	elif frappe.db.get_value("Address", {"address_first_name": magento_order_address.get("firstname"), "address_last_name": magento_order_address.get("lastname"),
+		"pincode": magento_order_address.get("postcode"), "address_line1": magento_order_address.get("street")[0]}, "name"):
+		return frappe.db.get_value("Address", {"address_first_name": magento_order_address.get("firstname"), "address_last_name": magento_order_address.get("lastname"),
+		"pincode": magento_order_address.get("postcode"), "address_line1": magento_order_address.get("street")[0]}, "name")
+
+	else:
+		erpnext_customer.name = magento_order.get("erpnext_guest_customer_name") or frappe.db.get_value("Customer", {"magento_customer_id": magento_order.get("customer_id")}, "name")
+
+		sync_magento_customer_addresses(erpnext_customer, [magento_order_address])
+
+		return frappe.db.get_value("Address", {"address_first_name": magento_order_address.get("firstname"), "address_last_name": magento_order_address.get("lastname"),
+		"pincode": magento_order_address.get("postcode"), "address_line1": magento_order_address.get("street")[0]}, "name")
 
 def get_price_list(magento_order, magento_settings):
 	for price_list in magento_settings.price_lists:
@@ -158,6 +190,14 @@ def get_tax_account_head(tax):
 		frappe.throw(f'Tax Account not specified for Magento Tax {tax.get("code")}')
 
 	return tax_account
+
+def set_order_as_complete_in_magento(magento_order):
+	magento_order_dict = {
+		"entity_id": magento_order.get("entity_id"),
+		"status": "complete"
+	}
+
+	post_request("rest/V1/orders", {"entity": magento_order_dict})
 
 def sync_magento_shipments(magento_order, magento_settings):
 	erpnext_sales_order_name = frappe.db.get_value("Sales Order", {"magento_order_id": magento_order.get("entity_id")}, "name")
@@ -216,3 +256,8 @@ def make_payament_entry_against_sales_invoice(doc, magento_settings):
 		payemnt_entry.reference_date = nowdate()
 		payemnt_entry.submit()
 		frappe.db.commit()
+
+
+
+
+

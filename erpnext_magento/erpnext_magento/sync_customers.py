@@ -41,10 +41,9 @@ def sync_magento_customers(magento_customer_list):
 
 def construct_customer_name(magento_customer):
 		if  magento_customer.get("middlename"):
-			constructet_customer_name = (magento_customer.get("firstname") + " " \
-			+ magento_customer.get("middlename") + " " + magento_customer.get("lastname"))
+			constructet_customer_name = (f'{magento_customer.get("firstname")} {magento_customer.get("middlename")} {magento_customer.get("lastname")}')
 		else:
-			constructet_customer_name = (magento_customer.get("firstname") + " " + magento_customer.get("lastname"))
+			constructet_customer_name = (f'{magento_customer.get("firstname")} {magento_customer.get("lastname")}')
 		
 		return constructet_customer_name
 
@@ -89,15 +88,17 @@ def update_erpnext_customer(customer_dict, magento_customer, magento_customer_li
 
 def sync_magento_customer_addresses(customer, magento_customer_addresses):
 	for i, magento_address in enumerate(magento_customer_addresses):
-		magento_address["title"], magento_address["type"] = get_address_title_and_type(customer.customer_name, i)
+		magento_address["title"], magento_address["type"] = get_address_title_and_type(customer.customer_name, magento_address, i)
 
 		fill_empty_address_lines(magento_address)
 
 		address_dict = {
 			"doctype": "Address",
-			"magento_address_id": magento_address.get("id") or "",
+			"magento_address_id": magento_address.get("id") or magento_address.get("customer_address_id") or "",
 			"address_title": magento_address.get("title"),
 			"address_type": magento_address["type"],
+			"address_first_name": magento_address.get("firstname"),
+			"address_last_name": magento_address.get("lastname"),
 			"address_line1": magento_address["street"][0],
 			"address_line2": magento_address["street"][1],
 			"address_line3": magento_address["street"][2],
@@ -115,7 +116,7 @@ def sync_magento_customer_addresses(customer, magento_customer_addresses):
 			}]
 		}
 
-		if not frappe.db.get_value("Address", {"magento_address_id": magento_address.get("id")}, "name"):
+		if not frappe.db.get_value("Address", {"magento_address_id": address_dict.get("magento_address_id")}, "name"):
 			create_erpnext_customer_address(address_dict)
 		else:
 			update_erpnext_customer_address(address_dict, magento_address)
@@ -135,6 +136,7 @@ def create_erpnext_customer_address(address_dict):
 		address = frappe.get_doc(address_dict)
 		address.flags.ignore_mandatory = True
 		address.insert()
+		frappe.db.commit()
 		
 	except Exception as e:
 		make_magento_log(title=e.message, status="Error", method="create_erpnext_customer_address", message=frappe.get_traceback(),
@@ -142,18 +144,24 @@ def create_erpnext_customer_address(address_dict):
 
 def update_erpnext_customer_address(address_dict, magento_address):
 	try:
-		address = frappe.get_doc("Address", frappe.db.get_value("Address", {"magento_address_id": magento_address["id"]}, "name"))
+		address = frappe.get_doc("Address", frappe.db.get_value("Address", {"magento_address_id": address_dict.get("magento_address_id")}, "name"))
 		address.update(address_dict)
 		address.flags.ignore_mandatory = True
 		address.save()
+		frappe.db.commit()
 
 	except Exception as e:
 		make_magento_log(title=e.message, status="Error", method="update_erpnext_customer_address", message=frappe.get_traceback(),
 			request_data=magento_customer, exception=True)
 	
-def get_address_title_and_type(customer_name, index):
-	address_type = _("Billing")
+def get_address_title_and_type(customer_name, magento_address, index):
 	address_title = customer_name
+
+	if magento_address.get("address_type") == "shipping":
+		address_type = _("Shipping")
+	else:
+		address_type = _("Billing")
+
 	if frappe.db.get_value("Address", "{0}-{1}".format(customer_name.strip(), address_type)):
 		address_title = "{0}-{1}".format(customer_name.strip(), index)
 		

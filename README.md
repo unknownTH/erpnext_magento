@@ -27,3 +27,4 @@ GNU GPL v3.0
 #### Orders
 - Tax has to be included in price rate.
 - Shipping Costs are not synced from Magento to ERPNext
+- When a Magento order is snced to ERPNext it will automatically marked as completed in Magento. Delivery and payment tracking has to be done in ERPNext.

@@ -220,6 +220,20 @@ def get_magento_store_code_by_website_id(website_id):
 		if store.get("website_id") == website_id:
 			return store.get("code")
 
+def get_magento_customers(ignore_filter_conditions=False):
+	magento_customers = []
+
+	filter_condition = ""
+
+	if not ignore_filter_conditions:
+		filter_condition = get_filtering_condition()
+
+	for page_idx in range(0, get_total_pages("customers/search", ignore_filter_conditions) or 1):
+		magento_customers.extend(get_request('customers/search?searchCriteria[pageSize]=250&searchCriteria[currentPage]={0}&{1}'.format(page_idx+1,
+			filter_condition))['items'])
+
+	return magento_customers
+
 def get_magento_items(ignore_filter_conditions=False):
 	magento_items = []
 
@@ -248,20 +262,6 @@ def get_magento_orders(ignore_filter_conditions=False):
 			filter_condition))['items'])
 
 	return magento_orders
-
-def get_magento_customers(ignore_filter_conditions=False):
-	magento_customers = []
-
-	filter_condition = ""
-
-	if not ignore_filter_conditions:
-		filter_condition = get_filtering_condition()
-
-	for page_idx in range(0, get_total_pages("customers/search", ignore_filter_conditions) or 1):
-		magento_customers.extend(get_request('customers/search?searchCriteria[pageSize]=250&searchCriteria[currentPage]={0}&{1}'.format(page_idx+1,
-			filter_condition))['items'])
-	return magento_customers
-
 
 
 
