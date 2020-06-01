@@ -21,6 +21,10 @@ def sync_orders():
 	sync_magento_orders(magento_order_list)
 	frappe.local.form_dict.count_dict["erpnext_orders"] = len(magento_order_list)
 
+	erpnext_order_list = []
+	sync_erpnext_orders(erpnext_order_list)
+	frappe.local.form_dict.count_dict["magento_orders"] = len(erpnext_order_list)
+
 def sync_magento_orders(magento_order_list):
 	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
 
@@ -42,7 +46,6 @@ def sync_magento_orders(magento_order_list):
 		try:
 			if not frappe.db.get_value("Sales Order", {"magento_order_id": magento_order.get("entity_id")}, "name"):
 				create_erpnext_sales_order(magento_order, magento_settings)
-				set_order_as_complete_in_magento(magento_order)
 			
 			if cint(magento_settings.sync_delivery_note):
 				sync_magento_shipments(magento_order, magento_settings)
@@ -140,7 +143,8 @@ def get_sales_order_erpnext_address(address_type, magento_order):
 		"pincode": magento_order_address.get("postcode"), "address_line1": magento_order_address.get("street")[0]}, "name")
 
 	else:
-		erpnext_customer.name = magento_order.get("erpnext_guest_customer_name") or frappe.db.get_value("Customer", {"magento_customer_id": magento_order.get("customer_id")}, "name")
+		erpnext_customer_name = magento_order.get("erpnext_guest_customer_name") or frappe.db.get_value("Customer", {"magento_customer_id": magento_order.get("customer_id")}, "name")
+		erpnext_customer = frappe.get_doc("Customer", erpnext_customer_name)
 
 		sync_magento_customer_addresses(erpnext_customer, [magento_order_address])
 
@@ -160,7 +164,8 @@ def get_order_items(order_items, magento_settings):
 			items.append({
 				"item_code": frappe.db.get_value("Item", {"magento_product_id": magento_item.get("product_id")}, "item_code"),
 				"item_name": magento_item.get("name"),
-				"rate": magento_item.get("base_original_price"),
+				"magento_order_item_id": magento_item.get("parent_item_id") or magento_item.get("item_id"),
+				"rate": magento_item.get("price"),
 				"delivery_date": nowdate(),
 				"qty": magento_item.get("qty_ordered"),
 				"magento_sku": magento_item.get("sku"),
@@ -190,14 +195,6 @@ def get_tax_account_head(tax):
 		frappe.throw(f'Tax Account not specified for Magento Tax {tax.get("code")}')
 
 	return tax_account
-
-def set_order_as_complete_in_magento(magento_order):
-	magento_order_dict = {
-		"entity_id": magento_order.get("entity_id"),
-		"status": "complete"
-	}
-
-	post_request("rest/V1/orders", {"entity": magento_order_dict})
 
 def sync_magento_shipments(magento_order, magento_settings):
 	erpnext_sales_order_name = frappe.db.get_value("Sales Order", {"magento_order_id": magento_order.get("entity_id")}, "name")
@@ -257,7 +254,62 @@ def make_payament_entry_against_sales_invoice(doc, magento_settings):
 		payemnt_entry.submit()
 		frappe.db.commit()
 
+def sync_erpnext_orders(erpnext_order_list):
+	for erpnext_delivery_note in get_erpnext_delivery_notes():
+		magento_shipment_dict = {
+			"items": get_erpnex_delivery_note_items(erpnext_delivery_note.get("delivery_note_name")),
+			"notify": 1
+		}
 
+		try:
+			request_response = post_request(f'rest/V1/order/{erpnext_delivery_note.get("magento_order_id")}/ship', magento_shipment_dict)
 
+			save_magento_properties_to_erpnext(erpnext_delivery_note, request_response)
+
+			# set_order_as_complete_in_magento(magento_order)
+
+			if erpnext_delivery_note.get("sales_order_name") not in erpnext_order_list:
+				erpnext_order_list.append(erpnext_delivery_note.get("sales_order_name"))
+
+		except Exception as e:
+			make_magento_log(title=e.message, status="Error", method="sync_erpnext_orders", message=frappe.get_traceback(),
+				request_data=magento_shipment_dict, exception=True)
+
+def get_erpnext_delivery_notes():
+	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
+
+	last_sync_condition = ""
+	if magento_settings.last_sync_datetime:
+		last_sync_condition = f"and dn.modified >= '{magento_settings.last_sync_datetime}' "
+
+	delivery_note_querry = f"""SELECT so.name as sales_order_name, so.magento_order_id, dn.name as delivery_note_name
+		FROM `tabSales Order` so, `tabDelivery Note` dn, `tabDelivery Note Item` dni
+		WHERE so.magento_order_id IS NOT NULL AND so.name = dni.against_sales_order AND dn.name = dni.parent
+		AND magento_shipment_id IS NULL {last_sync_condition}
+		GROUP BY dn.name"""
+
+	return frappe.db.sql(delivery_note_querry, as_dict=1)
+
+def get_erpnex_delivery_note_items(delivery_note_name):
+	delivery_note_item_querry = f"""SELECT CONVERT(magento_order_item_id, INT) as order_item_id, qty
+		FROM `tabDelivery Note Item` WHERE parent = '{delivery_note_name}'""" 
+
+	return frappe.db.sql(delivery_note_item_querry, as_dict=1)
+
+def save_magento_properties_to_erpnext(erpnext_delivery_note, request_response):
+	delivery_note = frappe.get_doc("Delivery Note", erpnext_delivery_note.get("delivery_note_name"))
+
+	delivery_note.magento_shipment_id = request_response
+	delivery_note.magento_order_id = frappe.db.get_value("Sales Order", {"name": erpnext_delivery_note.get("sales_order_name")}, "magento_order_id")
+	delivery_note.save()
+	frappe.db.commit()
+
+def set_order_as_complete_in_magento(magento_order):
+	magento_order_dict = {
+		"entity_id": magento_order.get("entity_id"),
+		"status": "complete"
+	}
+
+	post_request("rest/V1/orders", {"entity": magento_order_dict})
 
 

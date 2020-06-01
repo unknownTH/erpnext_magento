@@ -35,7 +35,7 @@ def sync_magento_resources():
 				# message= "Updated: {customers} customer(s), {products} item(s), {orders} order(s)".format(**frappe.local.form_dict.count_dict))
 				message= "Updated: \n {erpnext_customers} ERPNext customer(s), {magento_customers} Magento customer(s) \n \
 {erpnext_products} ERPNext products(s), {magento_products} Magento products(s) \n \
-{erpnext_orders} ERPNext order(s)".format(**frappe.local.form_dict.count_dict))
+{erpnext_orders} ERPNext order(s), {magento_orders} Magento order(s)".format(**frappe.local.form_dict.count_dict))
 
 		except Exception as e:
 			make_magento_log(title="sync has terminated", status="Error", method="sync_magento_resources",
