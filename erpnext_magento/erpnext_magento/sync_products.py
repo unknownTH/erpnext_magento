@@ -153,7 +153,7 @@ def sync_magento_items(magento_item_list):
 				if magento_parent_item_id:
 					erpnext_parent_item = frappe.get_doc("Item", frappe.db.get_value("Item", {"magento_product_id": magento_parent_item_id}, "name"))
 			
-					item_dict["attributes"] = get_magento_virtual_item_attributes_list(erpnext_parent_item, magento_item)
+					item_dict["attributes"] = get_magento_variant_item_attributes_list(erpnext_parent_item, magento_item)
 					item_dict["variant_of"] = erpnext_parent_item.name
 
 				create_erpnext_item(item_dict, magento_item, magento_item_list)
@@ -249,7 +249,7 @@ def get_magento_configurable_item_attributes_list(magento_item):
 
 	return attribute_list
 
-def get_magento_virtual_item_attributes_list(erpnext_template_item, magento_item):
+def get_magento_variant_item_attributes_list(erpnext_template_item, magento_item):
 	attribute_list = []
 
 	for erpnext_template_item_attribute in erpnext_template_item.attributes:
@@ -266,6 +266,7 @@ def get_magento_virtual_item_attributes_list(erpnext_template_item, magento_item
 		}
 		
 		attribute_list.append(magento_item_attribute_value_dict)
+			
 
 	return attribute_list
 
@@ -374,7 +375,7 @@ def update_item_to_magento(erpnext_item):
 			"visibility": 1,
 			"price": get_magento_default_item_price(erpnext_item)
 		})
-		magento_item_dict["custom_attributes"].extend(get_magento_virtual_product_attributes(erpnext_item))
+		magento_item_dict["custom_attributes"].extend(get_magento_variant_product_attributes(erpnext_item))
 		
 	else:
 		magento_item_dict.update({
@@ -495,7 +496,7 @@ def get_magento_configurable_product_variant_links(erpnext_item):
 
 	return variant_links_list
 
-def get_magento_virtual_product_attributes(erpnext_item):
+def get_magento_variant_product_attributes(erpnext_item):
 	attribute_list = []
 	
 	erpnext_item_variant_attributes = frappe.get_all("Item Variant Attribute", filters={"parent": erpnext_item.get("item_code")},
@@ -517,8 +518,7 @@ def save_new_magento_properties_to_erpnext(item_name, request_response):
 	erpnext_item.magento_product_id = request_response.get("id")
 	erpnext_item.magento_sku = request_response.get("sku")
 	erpnext_item.save()
-
-	frappe.db.commit
+	frappe.db.commit()
 
 def update_item_prices_to_magento(erpnext_item):
 	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
