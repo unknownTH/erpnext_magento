@@ -194,7 +194,7 @@ def get_magento_region_id_by_name(region_name):
 	raise Exception(f'No Magento region with name "{region_name}".')
 
 def get_magento_item_attribute_details_by_id(magento_item_attribute_id):
-	return get_request(f"products/attributes/{0}".format(magento_item_attribute_id))
+	return get_request(f"products/attributes/{magento_item_attribute_id}")
 
 def get_magento_item_attribute_details_by_name(item_attribute_name):
 	for magento_item_attribute in get_request("products/attributes?searchCriteria")["items"]:

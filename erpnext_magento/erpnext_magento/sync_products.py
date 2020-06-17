@@ -245,7 +245,8 @@ def get_magento_configurable_item_attributes_list(magento_item):
 	attribute_list = []
 
 	for magento_item_attribute in magento_item.get("extension_attributes").get("configurable_product_options"):
-		attribute_list.append({"attribute": magento_item_attribute.get("label")})
+		magento_item_attribute_details = get_magento_item_attribute_details_by_id(magento_item_attribute.get("attribute_id"))
+		attribute_list.append({"attribute": magento_item_attribute_details.get("default_frontend_label")})
 
 	return attribute_list
 
