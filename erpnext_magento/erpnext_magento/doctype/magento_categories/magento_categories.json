@@ -15,25 +15,13 @@
    "reqd": 1
   }
  ],
- "modified": "2020-06-15 10:37:25.078714",
+ "istable": 1,
+ "modified": "2020-06-19 13:48:34.086156",
  "modified_by": "Administrator",
  "module": "ERPNext Magento",
  "name": "Magento Categories",
  "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
+ "permissions": [],
  "quick_entry": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
