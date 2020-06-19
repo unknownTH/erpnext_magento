@@ -91,7 +91,7 @@ def sync_erpnext_item_attribute_values(erpnext_item_attribute, magento_item_attr
 			magento_item_attribute_value_dict = {
 				"label": erpnext_item_attribute_value.get("attribute_value")
 			}
-			
+
 			try:
 				request_response = post_request(f'products/attributes/{erpnext_item_attribute.magento_item_attribute_id}/options',
 					{"option": magento_item_attribute_value_dict})
@@ -302,7 +302,7 @@ def update_erpnext_item(item_dict, magento_item, magento_item_list):
 
 def sync_erpnext_items(erpnext_item_list, magento_item_list):
 	for erpnext_item in get_erpnext_items():
-		if int(erpnext_item.magento_product_id) not in magento_item_list:
+		if erpnext_item.get("magento_product_id") not in magento_item_list:
 			if erpnext_item.changed == 'item':
 				try:
 					update_item_to_magento(erpnext_item)
@@ -315,7 +315,7 @@ def sync_erpnext_items(erpnext_item_list, magento_item_list):
 			elif erpnext_item.changed == 'price' and erpnext_item.name not in erpnext_item_list:
 				if not erpnext_item.get("has_variants"):
 					update_item_prices_to_magento(erpnext_item)
-				erpnext_item_list.append(erpnext_item.name)
+					erpnext_item_list.append(erpnext_item.name)
 
 def get_erpnext_items():
 	erpnext_items = []
@@ -327,19 +327,19 @@ def get_erpnext_items():
 		last_sync_condition = "and modified >= '{0}' ".format(magento_settings.last_sync_datetime)
 		item_price_condition = "and ip.modified >= '{0}' ".format(magento_settings.last_sync_datetime)
 
-	item_from_master_sql = """select 'item' as changed, name, item_code, magento_sku, item_name, description,
-		magento_description, has_variants, variant_of, stock_uom, magento_product_id, magento_attribute_set_name,
-		magento_status from tabItem	where sync_with_magento=1 and (disabled is null or disabled = 0) {0}
+	item_from_master_sql = """SELECT 'item' as changed, name, item_code, magento_sku, item_name, description,
+		magento_description, has_variants, variant_of, stock_uom, CAST(magento_product_id AS INT) AS magento_product_id, magento_attribute_set_name,
+		magento_status FROM tabItem	WHERE sync_with_magento=1 and (disabled is null or disabled = 0) {0}
 		order by has_variants ASC""".format(last_sync_condition)
 
 	erpnext_items.extend(frappe.db.sql(item_from_master_sql, as_dict=1))
 
-	price_lists_sql = """select price_list from `tabMagento Price List`"""
+	price_lists_sql = """SELECT price_list FROM `tabMagento Price List`"""
 
-	item_from_item_price_sql = """select 'price' as changed, i.name, i.item_code, i.magento_sku, i.item_name, i.item_group, i.description,
-		i.magento_description, i.has_variants, i.variant_of, i.magento_product_id, i.magento_attribute_set_name,
-		magento_status from tabItem i, `tabItem Price` ip where price_list in ({0}) and i.name = ip.item_code
-		and sync_with_magento=1 and (disabled is null or disabled = 0) {1}""".format(price_lists_sql, item_price_condition)
+	item_from_item_price_sql = """SELECT 'price' as changed, i.name, i.item_code, i.magento_sku, i.item_name, i.item_group, i.description,
+		i.magento_description, i.has_variants, i.variant_of, CAST(i.magento_product_id AS INT) AS magento_product_id, i.magento_attribute_set_name,
+		magento_status FROM tabItem i, `tabItem Price` ip WHERE price_list in ({0}) and i.name = ip.item_code
+		AND sync_with_magento=1 and (disabled is null OR disabled = 0) {1}""".format(price_lists_sql, item_price_condition)
 
 	updated_price_item_list = frappe.db.sql(item_from_item_price_sql, as_dict=1)
 
@@ -462,7 +462,7 @@ def get_magento_category_ids_list(erpnext_item):
 def get_magento_configurable_product_options(erpnext_item):
 	configurable_product_options_list = []
 
-	erpnext_item_attributes = frappe.db.get_all("Item Variant Attribute", filters={"parent": erpnext_item.name},
+	erpnext_item_attributes = frappe.db.get_all("Item Variant Attribute", filters={"parent": erpnext_item.get("name")},
 		fields=["attribute"])
  
 	for attribute in erpnext_item_attributes:
@@ -480,7 +480,7 @@ def get_magento_configurable_product_options(erpnext_item):
 
 def get_magento_configurable_product_options_values(erpnext_item, magento_attribute_details):
 	values_list = []
-	erpnext_item_attribute_values = frappe.db.get_all("Item Variant Attribute", filters={"variant_of": erpnext_item.name},
+	erpnext_item_attribute_values = frappe.db.get_all("Item Variant Attribute", filters={"variant_of": erpnext_item.get("name")},
 		fields=["attribute", "attribute_value"])
 
 	for erpnext_item_attribute_value in erpnext_item_attribute_values:

@@ -57,3 +57,19 @@ name=None, request_data={}):
 		
 		log.save(ignore_permissions=True)
 		frappe.db.commit()
+
+def fix_missing_variant_of_in_item_variant_attribute():
+    to_fix_item_attribute_values_sql = """select name from `tabItem Variant Attribute`
+        where variant_of is null and attribute_value is not null"""
+
+    to_fix_item_attribute_values = frappe.db.sql(to_fix_item_attribute_values_sql, as_dict=1)
+
+    for to_fix_item_attribute_value in to_fix_item_attribute_values:
+        item_attribute_value = frappe.get_doc("Item Variant Attribute", to_fix_item_attribute_value.get("name"))
+
+        item_attribute_value.variant_of = frappe.db.get_value("Item", item_attribute_value.parent, "variant_of")
+
+        item_attribute_value.flags.ignore_mandatory = True
+        item_attribute_value.save()
+
+    frappe.db.commit()
