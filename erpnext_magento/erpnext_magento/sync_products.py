@@ -159,7 +159,7 @@ def sync_magento_items(magento_item_list):
 				create_erpnext_item(item_dict, magento_item, magento_item_list)
 				
 			else:
-				raise Exception('Magento item type "{0}" is not compatible with ERPNext.'.format(magento_item.get("type_id")))	
+				raise Exception(f'Magento item type "{magento_item.get("type_id")}" is not compatible with ERPNext.')	
 
 		else:
 			if magento_item.get("type_id") == "configurable":
@@ -238,8 +238,7 @@ def get_price_list_by_website_id(website_id):
 		if price_list.get("magento_website_name") == get_magento_website_name_by_id(website_id):
 			return price_list.price_list
 	
-	raise Exception("There is no maching website in ERPNext Magento settings for the Magento website {0}.".\
-		format(get_magento_website_name_by_id(website_id)))
+	raise Exception(f"There is no maching website in ERPNext Magento settings for the Magento website {get_magento_website_name_by_id(website_id)}.")
 
 def get_magento_configurable_item_attributes_list(magento_item):
 	attribute_list = []
@@ -304,13 +303,8 @@ def sync_erpnext_items(erpnext_item_list, magento_item_list):
 	for erpnext_item in get_erpnext_items():
 		if erpnext_item.get("magento_product_id") not in magento_item_list:
 			if erpnext_item.changed == 'item':
-				try:
-					update_item_to_magento(erpnext_item)
-					erpnext_item_list.append(erpnext_item.name)
-
-				except Exception as e:
-					make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
-						request_data=erpnext_item, exception=True)	
+				update_item_to_magento(erpnext_item)
+				erpnext_item_list.append(erpnext_item.name)
 
 			elif erpnext_item.changed == 'price' and erpnext_item.name not in erpnext_item_list:
 				if not erpnext_item.get("has_variants"):
@@ -324,22 +318,22 @@ def get_erpnext_items():
 	last_sync_condition = ""
 	item_price_condition = ""
 	if magento_settings.last_sync_datetime:
-		last_sync_condition = "and modified >= '{0}' ".format(magento_settings.last_sync_datetime)
-		item_price_condition = "and ip.modified >= '{0}' ".format(magento_settings.last_sync_datetime)
+		last_sync_condition = f"and modified >= '{magento_settings.last_sync_datetime}' "
+		item_price_condition = f"and ip.modified >= '{magento_settings.last_sync_datetime}' "
 
-	item_from_master_sql = """SELECT 'item' as changed, name, item_code, magento_sku, item_name, description,
+	item_from_master_sql = f"""SELECT 'item' as changed, name, item_code, magento_sku, item_name, description,
 		magento_description, has_variants, variant_of, stock_uom, CAST(magento_product_id AS INT) AS magento_product_id, magento_attribute_set_name,
-		magento_status FROM tabItem	WHERE sync_with_magento=1 and (disabled is null or disabled = 0) {0}
-		order by has_variants ASC""".format(last_sync_condition)
+		magento_status FROM tabItem	WHERE sync_with_magento=1 and (disabled is null or disabled = 0) {last_sync_condition}
+		order by has_variants ASC"""
 
 	erpnext_items.extend(frappe.db.sql(item_from_master_sql, as_dict=1))
 
 	price_lists_sql = """SELECT price_list FROM `tabMagento Price List`"""
 
-	item_from_item_price_sql = """SELECT 'price' as changed, i.name, i.item_code, i.magento_sku, i.item_name, i.item_group, i.description,
+	item_from_item_price_sql = f"""SELECT 'price' as changed, i.name, i.item_code, i.magento_sku, i.item_name, i.item_group, i.description,
 		i.magento_description, i.has_variants, i.variant_of, CAST(i.magento_product_id AS INT) AS magento_product_id, i.magento_attribute_set_name,
-		magento_status FROM tabItem i, `tabItem Price` ip WHERE price_list in ({0}) and i.name = ip.item_code
-		AND sync_with_magento=1 and (disabled is null OR disabled = 0) {1}""".format(price_lists_sql, item_price_condition)
+		magento_status FROM tabItem i, `tabItem Price` ip WHERE price_list in ({price_lists_sql}) and i.name = ip.item_code
+		AND sync_with_magento=1 and (disabled is null OR disabled = 0) {item_price_condition}"""
 
 	updated_price_item_list = frappe.db.sql(item_from_item_price_sql, as_dict=1)
 
@@ -366,7 +360,9 @@ def update_item_to_magento(erpnext_item):
 	}
 
 	if erpnext_item.get("has_variants"): 
-		magento_item_dict.update({"type_id": "configurable"})
+		magento_item_dict.update({
+			"type_id": "configurable",
+			"price": 0})
 		magento_item_dict["extension_attributes"].update({"configurable_product_options": get_magento_configurable_product_options(erpnext_item)})
 		magento_item_dict["extension_attributes"].update({"configurable_product_links": get_magento_configurable_product_variant_links(erpnext_item)})	
 	
@@ -404,15 +400,16 @@ def update_item_to_magento(erpnext_item):
 			if not erpnext_item.get("has_variants"):
 				update_item_prices_to_magento(erpnext_item)
 
-	except requests.exceptions.HTTPError as e:
+	except Exception as e:
 		if e.args[0] and e.args[0].startswith("404"):
 			erpnext_item.magento_item_id = ""
 			erpnext_item.sync_with_magento = 0
 			erpnext_item.flags.ignore_mandatory = True
 			erpnext_item.save()
-		else:
-			e.message = f'Failed to sync item "{erpnext_item.get("item_name")}".'
-			raise 
+
+		exception_title = f'Failed to sync item "{erpnext_item.get("item_name")}".'
+		make_magento_log(title=exception_title, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
+						request_data=erpnext_item, exception=True)
 
 def convert_magento_status_to_boolean(magento_status):
 	if magento_status == "Enabled":
@@ -502,7 +499,7 @@ def get_magento_variant_product_attributes(erpnext_item):
 	
 	erpnext_item_variant_attributes = frappe.get_all("Item Variant Attribute", filters={"parent": erpnext_item.get("item_code")},
 		fields=["attribute", "attribute_value"])
-
+	
 	for erpnext_item_variant_attribute in erpnext_item_variant_attributes:
 		attribute_code = frappe.db.get_value("Item Attribute", {"attribute_name": erpnext_item_variant_attribute.get("attribute")},
 			"magento_item_attribute_code")
@@ -532,13 +529,18 @@ def update_item_prices_to_magento(erpnext_item):
 		store_code = get_magento_store_code_by_website_id(get_magento_website_id_by_name(erpnext_item_magento_website.get("magento_website_name")))
 		price = frappe.db.get_value("Item Price", {"item_code": erpnext_item.get("item_code"),
 			"price_list": erpnext_price_list}, "price_list_rate")
-	
-		if price:
-			put_request(f'rest/{store_code}/V1/products/{erpnext_item.get("magento_sku")}', {"product": {"price": price}}) 
-		
-		else:
-			raise Exception(f'Item "{erpnext_item.get("item_name")}" has no price in price list \
-"{erpnext_price_list}" which is associated with Magento Website "{erpnext_item_magento_website.get("magento_website_name")}" in Magento Settings.')
+
+		try:	
+			if price:
+				put_request(f'rest/{store_code}/V1/products/{erpnext_item.get("magento_sku")}', {"product": {"price": price}}) 
+			
+			else:
+				raise Exception(f'Item "{erpnext_item.get("item_name")}" has no price in price list \
+	"{erpnext_price_list}" which is associated with Magento Website "{erpnext_item_magento_website.get("magento_website_name")}" in Magento Settings.')
+
+		except Exception as e:
+			make_magento_log(title=e.message, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
+							request_data=erpnext_item, exception=True)
 
 def get_price_list_for_magento_website(magento_website_name):
 	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")
