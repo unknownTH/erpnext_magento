@@ -244,7 +244,7 @@ def get_magento_items(ignore_filter_conditions=False):
 		filter_condition = get_filtering_condition()
 
 	for page_idx in range(0, get_total_pages("products", ignore_filter_conditions) or 1):
-		magento_items.extend(get_request('products?searchCriteria[pageSize]=250&searchCriteria[currentPage]={0}&{1}&{2}'\
+		magento_items.extend(get_request('rest/all/V1/products?searchCriteria[pageSize]=250&searchCriteria[currentPage]={0}&{1}&{2}'\
 			.format(page_idx+1,	filter_condition, sort_order))['items'])
 
 	return magento_items

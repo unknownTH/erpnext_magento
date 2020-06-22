@@ -275,6 +275,7 @@ def update_erpnext_item(item_dict, magento_item, magento_item_list):
 		item = frappe.get_doc("Item", frappe.db.get_value("Item", {"magento_product_id": magento_item.get("id")}, "name"))
 
 		del item_dict["item_code"]
+		del item_dict["item_name"]
 		item_dict["magento_attribute_set_name"] = get_magento_item_attribute_set_name_by_id(magento_item.get("attribute_set_id"))
 		item_dict["magento_websites"] = convert_website_ids_list(magento_item.get("extension_attributes").get("website_ids"))
 		item_dict["magento_categories"] = convert_catergory_ids_list(magento_item.get("extension_attributes").get("category_links"))
@@ -287,10 +288,13 @@ def update_erpnext_item(item_dict, magento_item, magento_item_list):
 		item.save()
 
 		if item and magento_item.get("type_id") != "configurable":
-			sync_magento_item_prices(item.item_code, magento_item)
-		
+			sync_magento_item_prices(item.get("item_code"), magento_item)
+
+		frappe.rename_doc("Item", item.get("name"), magento_item.get("name"))
+
 		magento_item_list.append(magento_item.get("id"))
 		frappe.db.commit()
+		
 			
 	except Exception as e:
 		if e.args[0] and e.args[0].startswith("402"):
@@ -342,7 +346,7 @@ def get_erpnext_items():
 def update_item_to_magento(erpnext_item):
 	magento_item_dict = {
 		"id": erpnext_item.get("magento_product_id") or "",
-		"sku": erpnext_item.get("magento_sku") or erpnext_item.get("item_name").replace(" ", "-"),
+		"sku": erpnext_item.get("magento_sku") or erpnext_item.get("item_name").replace(" ", "").replace(":", "-").replace("/", "-"),
 		"name": erpnext_item.get("item_name"),
 		"attribute_set_id": get_magento_item_attribute_set_id_by_name(erpnext_item.get("magento_attribute_set_name")),
 		"status": convert_magento_status_to_boolean(erpnext_item.get("magento_status")),
@@ -410,6 +414,7 @@ def update_item_to_magento(erpnext_item):
 		exception_title = f'Failed to sync item "{erpnext_item.get("item_name")}".'
 		make_magento_log(title=exception_title, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
 						request_data=erpnext_item, exception=True)
+		raise
 
 def convert_magento_status_to_boolean(magento_status):
 	if magento_status == "Enabled":
