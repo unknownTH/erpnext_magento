@@ -276,6 +276,7 @@ def update_erpnext_item(item_dict, magento_item, magento_item_list):
 
 		del item_dict["item_code"]
 		del item_dict["item_name"]
+		del item_dict["is_stock_item"]
 		item_dict["magento_attribute_set_name"] = get_magento_item_attribute_set_name_by_id(magento_item.get("attribute_set_id"))
 		item_dict["magento_websites"] = convert_website_ids_list(magento_item.get("extension_attributes").get("website_ids"))
 		item_dict["magento_categories"] = convert_catergory_ids_list(magento_item.get("extension_attributes").get("category_links"))
@@ -413,7 +414,7 @@ def update_item_to_magento(erpnext_item):
 
 		exception_title = f'Failed to sync item "{erpnext_item.get("item_name")}".'
 		make_magento_log(title=exception_title, status="Error", method="sync_magento_items", message=frappe.get_traceback(),
-						request_data=erpnext_item, exception=True)
+						request_data={"product": magento_item_dict}, exception=True)
 		raise
 
 def convert_magento_status_to_boolean(magento_status):
