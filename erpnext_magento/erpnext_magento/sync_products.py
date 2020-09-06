@@ -200,7 +200,7 @@ def create_erpnext_item(item_dict, magento_item, magento_item_list):
 		item = frappe.get_doc(item_dict)
 		item.flags.ignore_mandatory = True
 		item.insert()
-		
+
 		sync_magento_item_prices(item.item_code, magento_item)
 	
 		magento_item_list.append(magento_item.get("id"))
@@ -211,25 +211,27 @@ def create_erpnext_item(item_dict, magento_item, magento_item_list):
 			raise e
 		else:
 			make_magento_log(title=e.message, status="Error", method="create_erpnext_item", message=frappe.get_traceback(),
-				request_data=magento_customer, exception=True)
+				request_data=item_dict, exception=True)
 
 def sync_magento_item_prices(erpnext_item_code, magento_item):
 	for website_id in magento_item.get("extension_attributes").get("website_ids"):
 		price_list = get_price_list_by_website_id(website_id)
 		item_price_name = frappe.db.get_value("Item Price", {"item_code": erpnext_item_code,
 			"price_list": price_list}, "name")
-		if not item_price_name:
+		magento_item_price = get_magento_item_price_by_website(magento_item, website_id)
+
+		if item_price_name:
+			item_price = frappe.get_doc("Item Price", item_price_name)
+			item_price.price_list_rate = get_magento_item_price_by_website(magento_item, website_id)
+			item_price.save()
+
+		elif magento_item_price:
 			frappe.get_doc({
 				"doctype": "Item Price",
 				"price_list": price_list,
 				"item_code": erpnext_item_code,
-				"price_list_rate": get_magento_item_price_by_website(magento_item, website_id)
+				"price_list_rate": magento_item_price
 			}).insert()
-
-		else:
-			item_price = frappe.get_doc("Item Price", item_price_name)
-			item_price.price_list_rate = get_magento_item_price_by_website(magento_item, website_id)
-			item_price.save()
 
 def get_price_list_by_website_id(website_id):
 	magento_settings = frappe.get_doc("Magento Settings", "Magento Settings")

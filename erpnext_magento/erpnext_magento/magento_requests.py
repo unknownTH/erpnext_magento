@@ -102,10 +102,10 @@ def get_total_pages(resource, ignore_filter_conditions=False):
 	return int(math.ceil(count.get('total_count') / 250))
 
 def get_magento_category_id_by_name(category_name):
-	for category in get_request("categories/list?searchCriteria")['items']:
+	for category in get_request("rest/all/V1/categories/list?searchCriteria")['items']:
 		if category.get("name") == category_name:
 			return category.get("id")
-	
+
 	raise Exception(f'No Magento category with name "{category_name}".')
 
 def get_magento_category_name_by_id(category_id):
@@ -113,7 +113,7 @@ def get_magento_category_name_by_id(category_id):
 &searchCriteria[filter_groups][0][filters][0][value]={}\
 &searchCriteria[filter_groups][0][filters][0][condition_type]=eq".format(category_id)
 
-	return get_request("categories/list?{0}".format(filter))['items'][0].get("name")
+	return get_request("rest/all/V1/categories/list?{0}".format(filter))['items'][0].get("name")
 
 def get_magento_default_website():
 	return get_request("store/websites")[0]
@@ -173,7 +173,7 @@ def get_magento_website_name_by_store_id(store_id):
 def get_magento_country_name_by_id(country_id):
 	for country in get_request('directory/countries'):
 		if country.get("id") == country_id:
-			return country.get("full_name_locale")
+			return country.get("full_name_english")
 	
 	raise Exception(f'No Magento country with id "{country_id}".')
 
